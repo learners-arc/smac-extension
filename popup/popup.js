@@ -1,0 +1,685 @@
+/**
+ * Social Media Auto-Comment Chrome Extension - Popup JavaScript
+ * 
+ * Handles all popup UI interactions, settings management, and communication
+ * with the service worker. Provides a professional user experience with
+ * real-time updates and comprehensive error handling.
+ */
+
+// Import configuration (will be available as global from manifest)
+// const { CONFIG } = await import('../config.js');
+
+/**
+ * Popup Application Class
+ * Manages all popup functionality and state
+ */
+class PopupApp {
+    constructor() {
+        this.isInitialized = false;
+        this.currentSettings = {};
+        this.statistics = {};
+        this.isExtensionActive = false;
+
+        // DOM element references
+        this.elements = {};
+
+        // Bind methods
+        this.handleStartClick = this.handleStartClick.bind(this);
+        this.handleStopClick = this.handleStopClick.bind(this);
+        this.handlePlatformChange = this.handlePlatformChange.bind(this);
+        this.handleApiKeyChange = this.handleApiKeyChange.bind(this);
+        this.handleSettingsChange = this.handleSettingsChange.bind(this);
+    }
+
+    /**
+     * Initialize the popup application
+     */
+    async init() {
+        try {
+            console.log('Initializing popup application...');
+            this.showLoading('Loading extension data...');
+
+            // Cache DOM elements
+            this.cacheElements();
+
+            // Set up event listeners
+            this.setupEventListeners();
+
+            // Load current settings and statistics
+            await this.loadExtensionData();
+
+            // Update UI with loaded data
+            this.updateUI();
+
+            this.isInitialized = true;
+            console.log('Popup application initialized successfully');
+
+        } catch (error) {
+            console.error('Error initializing popup:', error);
+            this.showToast('Failed to initialize extension', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    /**
+     * Cache DOM element references
+     */
+    cacheElements() {
+        // Status elements
+        this.elements.statusDot = document.getElementById('statusDot');
+        this.elements.statusText = document.getElementById('statusText');
+
+        // Platform elements
+        this.elements.linkedinToggle = document.getElementById('linkedinToggle');
+        this.elements.twitterToggle = document.getElementById('twitterToggle');
+
+        // API configuration
+        this.elements.apiKey = document.getElementById('apiKey');
+        this.elements.toggleApiKey = document.getElementById('toggleApiKey');
+
+        // Settings elements
+        this.elements.intervalSlider = document.getElementById('intervalSlider');
+        this.elements.intervalValue = document.getElementById('intervalValue');
+        this.elements.csFilterToggle = document.getElementById('csFilterToggle');
+        this.elements.smartTypingToggle = document.getElementById('smartTypingToggle');
+
+        // Statistics elements
+        this.elements.totalComments = document.getElementById('totalComments');
+        this.elements.sessionsToday = document.getElementById('sessionsToday');
+        this.elements.postsProcessed = document.getElementById('postsProcessed');
+        this.elements.successRate = document.getElementById('successRate');
+
+        // Control buttons
+        this.elements.startBtn = document.getElementById('startBtn');
+        this.elements.stopBtn = document.getElementById('stopBtn');
+        this.elements.viewLogsBtn = document.getElementById('viewLogsBtn');
+        this.elements.clearDataBtn = document.getElementById('clearDataBtn');
+
+        // Footer links
+        this.elements.helpLink = document.getElementById('helpLink');
+        this.elements.settingsLink = document.getElementById('settingsLink');
+
+        // Overlay and toast
+        this.elements.loadingOverlay = document.getElementById('loadingOverlay');
+        this.elements.toastContainer = document.getElementById('toastContainer');
+    }
+
+    /**
+     * Set up all event listeners
+     */
+    setupEventListeners() {
+        // Platform selection
+        this.elements.linkedinToggle.addEventListener('change', this.handlePlatformChange);
+        this.elements.twitterToggle.addEventListener('change', this.handlePlatformChange);
+
+        // API key management
+        this.elements.apiKey.addEventListener('input', this.handleApiKeyChange);
+        this.elements.toggleApiKey.addEventListener('click', this.toggleApiKeyVisibility.bind(this));
+
+        // Settings
+        this.elements.intervalSlider.addEventListener('input', this.handleIntervalChange.bind(this));
+        this.elements.csFilterToggle.addEventListener('change', this.handleSettingsChange);
+        this.elements.smartTypingToggle.addEventListener('change', this.handleSettingsChange);
+
+        // Control buttons
+        this.elements.startBtn.addEventListener('click', this.handleStartClick);
+        this.elements.stopBtn.addEventListener('click', this.handleStopClick);
+        this.elements.viewLogsBtn.addEventListener('click', this.handleViewLogs.bind(this));
+        this.elements.clearDataBtn.addEventListener('click', this.handleClearData.bind(this));
+
+        // Footer links
+        this.elements.helpLink.addEventListener('click', this.handleHelpClick.bind(this));
+        this.elements.settingsLink.addEventListener('click', this.handleSettingsClick.bind(this));
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', this.handleKeyboard.bind(this));
+    }
+
+    /**
+     * Load extension data from storage
+     */
+    async loadExtensionData() {
+        try {
+            // Get settings from service worker
+            const response = await this.sendMessage({ type: 'GET_EXTENSION_STATUS' });
+
+            if (response.success) {
+                this.currentSettings = response.data;
+                console.log('Loaded settings:', this.currentSettings);
+            } else {
+                throw new Error(response.error || 'Failed to load settings');
+            }
+
+            // Load statistics (mock data for now, will be implemented in later parts)
+            this.statistics = {
+                totalComments: this.currentSettings.totalCommentsMade || 0,
+                sessionsToday: 0,
+                postsProcessed: 0,
+                successRate: this.calculateSuccessRate()
+            };
+
+        } catch (error) {
+            console.error('Error loading extension data:', error);
+            // Set default values if loading fails
+            this.currentSettings = {
+                isEnabled: false,
+                selectedPlatforms: [],
+                apiKey: '',
+                commentInterval: { min: 70, max: 90 },
+                csFilterEnabled: true,
+                smartTypingEnabled: true
+            };
+            throw error;
+        }
+    }
+
+    /**
+     * Update UI elements with current data
+     */
+    updateUI() {
+        // Update status indicator
+        this.updateStatusIndicator();
+
+        // Update platform selections
+        this.elements.linkedinToggle.checked = this.currentSettings.selectedPlatforms?.includes('LINKEDIN') || false;
+        this.elements.twitterToggle.checked = this.currentSettings.selectedPlatforms?.includes('TWITTER') || false;
+
+        // Update API key (masked)
+        if (this.currentSettings.apiKey) {
+            this.elements.apiKey.value = '•'.repeat(20);
+            this.elements.apiKey.dataset.hasKey = 'true';
+        }
+
+        // Update settings
+        const interval = Math.round((this.currentSettings.commentInterval?.min + this.currentSettings.commentInterval?.max) / 2) || 80;
+        this.elements.intervalSlider.value = interval;
+        this.elements.intervalValue.textContent = `${interval}s`;
+
+        this.elements.csFilterToggle.checked = this.currentSettings.csFilterEnabled !== false;
+        this.elements.smartTypingToggle.checked = this.currentSettings.smartTypingEnabled !== false;
+
+        // Update statistics
+        this.updateStatistics();
+
+        // Update button states
+        this.updateButtonStates();
+    }
+
+    /**
+     * Update status indicator
+     */
+    updateStatusIndicator() {
+        const isActive = this.currentSettings.isEnabled;
+
+        this.elements.statusDot.classList.toggle('active', isActive);
+        this.elements.statusText.textContent = isActive ? 'Active' : 'Inactive';
+
+        this.isExtensionActive = isActive;
+    }
+
+    /**
+     * Update statistics display
+     */
+    updateStatistics() {
+        this.elements.totalComments.textContent = this.statistics.totalComments || 0;
+        this.elements.sessionsToday.textContent = this.statistics.sessionsToday || 0;
+        this.elements.postsProcessed.textContent = this.statistics.postsProcessed || 0;
+        this.elements.successRate.textContent = `${this.statistics.successRate || 0}%`;
+    }
+
+    /**
+     * Update button states based on current status
+     */
+    updateButtonStates() {
+        const canStart = this.canStartExtension();
+
+        this.elements.startBtn.disabled = this.isExtensionActive || !canStart;
+        this.elements.stopBtn.disabled = !this.isExtensionActive;
+
+        // Update button text based on validation
+        if (!canStart && !this.isExtensionActive) {
+            const missing = this.getMissingRequirements();
+            this.elements.startBtn.textContent = `Missing: ${missing.join(', ')}`;
+        } else {
+            this.elements.startBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                ${this.isExtensionActive ? 'Running...' : 'Start Auto-Comment'}
+            `;
+        }
+    }
+
+    /**
+     * Check if extension can be started
+     */
+    canStartExtension() {
+        return this.currentSettings.apiKey &&
+            this.currentSettings.selectedPlatforms?.length > 0;
+    }
+
+    /**
+     * Get list of missing requirements
+     */
+    getMissingRequirements() {
+        const missing = [];
+
+        if (!this.currentSettings.apiKey) {
+            missing.push('API Key');
+        }
+
+        if (!this.currentSettings.selectedPlatforms?.length) {
+            missing.push('Platform');
+        }
+
+        return missing;
+    }
+
+    /**
+     * Handle platform selection changes
+     */
+    async handlePlatformChange(event) {
+        try {
+            const platform = event.target.value;
+            const isChecked = event.target.checked;
+
+            let selectedPlatforms = [...(this.currentSettings.selectedPlatforms || [])];
+
+            if (isChecked && !selectedPlatforms.includes(platform)) {
+                selectedPlatforms.push(platform);
+            } else if (!isChecked) {
+                selectedPlatforms = selectedPlatforms.filter(p => p !== platform);
+            }
+
+            await this.updateSetting('selectedPlatforms', selectedPlatforms);
+            this.updateButtonStates();
+
+            console.log('Platform selection updated:', selectedPlatforms);
+
+        } catch (error) {
+            console.error('Error handling platform change:', error);
+            this.showToast('Failed to update platform selection', 'error');
+        }
+    }
+
+    /**
+     * Handle API key input changes
+     */
+    async handleApiKeyChange(event) {
+        try {
+            const value = event.target.value;
+
+            // Don't update if it's the masked display
+            if (event.target.dataset.hasKey === 'true' && value === '•'.repeat(20)) {
+                return;
+            }
+
+            // Clear the masked state when user starts typing
+            if (event.target.dataset.hasKey === 'true') {
+                event.target.value = '';
+                event.target.dataset.hasKey = 'false';
+            }
+
+            await this.updateSetting('apiKey', value);
+            this.updateButtonStates();
+
+        } catch (error) {
+            console.error('Error handling API key change:', error);
+            this.showToast('Failed to update API key', 'error');
+        }
+    }
+
+    /**
+     * Toggle API key visibility
+     */
+    toggleApiKeyVisibility() {
+        const input = this.elements.apiKey;
+        const button = this.elements.toggleApiKey;
+
+        if (input.type === 'password') {
+            input.type = 'text';
+            button.title = 'Hide API Key';
+        } else {
+            input.type = 'password';
+            button.title = 'Show API Key';
+        }
+    }
+
+    /**
+     * Handle interval slider changes
+     */
+    async handleIntervalChange(event) {
+        try {
+            const value = parseInt(event.target.value);
+            this.elements.intervalValue.textContent = `${value}s`;
+
+            // Update the comment interval with some randomization
+            const interval = {
+                min: Math.max(70, value - 5),
+                max: Math.min(90, value + 5)
+            };
+
+            await this.updateSetting('commentInterval', interval);
+
+        } catch (error) {
+            console.error('Error handling interval change:', error);
+            this.showToast('Failed to update interval', 'error');
+        }
+    }
+
+    /**
+     * Handle other settings changes
+     */
+    async handleSettingsChange(event) {
+        try {
+            const settingName = event.target.id.replace('Toggle', 'Enabled');
+            const value = event.target.checked;
+
+            await this.updateSetting(settingName, value);
+
+        } catch (error) {
+            console.error('Error handling settings change:', error);
+            this.showToast('Failed to update setting', 'error');
+        }
+    }
+
+    /**
+     * Handle start button click
+     */
+    async handleStartClick() {
+        try {
+            if (!this.canStartExtension()) {
+                const missing = this.getMissingRequirements();
+                this.showToast(`Please configure: ${missing.join(', ')}`, 'warning');
+                return;
+            }
+
+            this.showLoading('Starting auto-comment...');
+
+            const response = await this.sendMessage({
+                type: 'UPDATE_EXTENSION_STATUS',
+                data: { isEnabled: true }
+            });
+
+            if (response.success) {
+                this.currentSettings.isEnabled = true;
+                this.updateStatusIndicator();
+                this.updateButtonStates();
+                this.showToast('Auto-comment started successfully!', 'success');
+
+                // Open appropriate platform tabs
+                await this.openPlatformTabs();
+
+            } else {
+                throw new Error(response.error || 'Failed to start extension');
+            }
+
+        } catch (error) {
+            console.error('Error starting extension:', error);
+            this.showToast('Failed to start auto-comment', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    /**
+     * Handle stop button click
+     */
+    async handleStopClick() {
+        try {
+            this.showLoading('Stopping auto-comment...');
+
+            const response = await this.sendMessage({
+                type: 'UPDATE_EXTENSION_STATUS',
+                data: { isEnabled: false }
+            });
+
+            if (response.success) {
+                this.currentSettings.isEnabled = false;
+                this.updateStatusIndicator();
+                this.updateButtonStates();
+                this.showToast('Auto-comment stopped', 'success');
+
+            } else {
+                throw new Error(response.error || 'Failed to stop extension');
+            }
+
+        } catch (error) {
+            console.error('Error stopping extension:', error);
+            this.showToast('Failed to stop auto-comment', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    /**
+     * Open platform tabs when starting
+     */
+    async openPlatformTabs() {
+        try {
+            const platforms = this.currentSettings.selectedPlatforms || [];
+
+            for (const platform of platforms) {
+                let url = '';
+                if (platform === 'LINKEDIN') {
+                    url = 'https://www.linkedin.com/feed/';
+                } else if (platform === 'TWITTER') {
+                    url = 'https://x.com/home';
+                }
+
+                if (url) {
+                    await chrome.tabs.create({ url });
+                }
+            }
+
+        } catch (error) {
+            console.error('Error opening platform tabs:', error);
+            // Don't show error toast as this is not critical
+        }
+    }
+
+    /**
+     * Handle view logs button click
+     */
+    async handleViewLogs() {
+        try {
+            // This will be implemented in Part 9
+            this.showToast('Logs viewer coming soon!', 'info');
+
+        } catch (error) {
+            console.error('Error viewing logs:', error);
+            this.showToast('Failed to open logs', 'error');
+        }
+    }
+
+    /**
+     * Handle clear data button click
+     */
+    async handleClearData() {
+        try {
+            if (!confirm('Are you sure you want to clear all extension data? This cannot be undone.')) {
+                return;
+            }
+
+            this.showLoading('Clearing data...');
+
+            // Clear storage (implementation will be completed in Part 4)
+            await chrome.storage.local.clear();
+
+            // Reset current state
+            this.currentSettings = {
+                isEnabled: false,
+                selectedPlatforms: [],
+                apiKey: '',
+                commentInterval: { min: 70, max: 90 }
+            };
+
+            this.statistics = {
+                totalComments: 0,
+                sessionsToday: 0,
+                postsProcessed: 0,
+                successRate: 0
+            };
+
+            // Update UI
+            this.updateUI();
+
+            this.showToast('All data cleared successfully', 'success');
+
+        } catch (error) {
+            console.error('Error clearing data:', error);
+            this.showToast('Failed to clear data', 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    /**
+     * Handle help link click
+     */
+    handleHelpClick(event) {
+        event.preventDefault();
+        chrome.tabs.create({
+            url: 'https://github.com/your-repo/social-media-auto-comment/wiki'
+        });
+    }
+
+    /**
+     * Handle settings link click
+     */
+    handleSettingsClick(event) {
+        event.preventDefault();
+        // Advanced settings page will be implemented later
+        this.showToast('Advanced settings coming soon!', 'info');
+    }
+
+    /**
+     * Handle keyboard shortcuts
+     */
+    handleKeyboard(event) {
+        // Escape key to close any modals or reset focus
+        if (event.key === 'Escape') {
+            document.activeElement.blur();
+        }
+
+        // Enter key on API key field
+        if (event.key === 'Enter' && event.target === this.elements.apiKey) {
+            event.target.blur();
+        }
+    }
+
+    /**
+     * Update a specific setting
+     */
+    async updateSetting(key, value) {
+        try {
+            this.currentSettings[key] = value;
+
+            const response = await this.sendMessage({
+                type: 'UPDATE_EXTENSION_STATUS',
+                data: { [key]: value }
+            });
+
+            if (!response.success) {
+                throw new Error(response.error || 'Failed to update setting');
+            }
+
+        } catch (error) {
+            console.error(`Error updating setting ${key}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Calculate success rate
+     */
+    calculateSuccessRate() {
+        // Mock calculation for now
+        const total = this.statistics?.postsProcessed || 0;
+        const successful = this.statistics?.totalComments || 0;
+
+        return total > 0 ? Math.round((successful / total) * 100) : 0;
+    }
+
+    /**
+     * Send message to service worker
+     */
+    async sendMessage(message) {
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage(message, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error('Message sending error:', chrome.runtime.lastError);
+                    resolve({ success: false, error: chrome.runtime.lastError.message });
+                } else {
+                    resolve(response || { success: false, error: 'No response received' });
+                }
+            });
+        });
+    }
+
+    /**
+     * Show loading overlay
+     */
+    showLoading(message = 'Loading...') {
+        this.elements.loadingOverlay.classList.remove('hidden');
+        this.elements.loadingOverlay.querySelector('.loading-text').textContent = message;
+    }
+
+    /**
+     * Hide loading overlay
+     */
+    hideLoading() {
+        this.elements.loadingOverlay.classList.add('hidden');
+    }
+
+    /**
+     * Show toast notification
+     */
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const messageElement = document.createElement('div');
+        messageElement.className = 'toast-message';
+        messageElement.textContent = message;
+
+        toast.appendChild(messageElement);
+        this.elements.toastContainer.appendChild(toast);
+
+        // Auto remove after 4 seconds
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 4000);
+    }
+}
+
+/**
+ * Initialize popup when DOM is ready
+ */
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const app = new PopupApp();
+        await app.init();
+
+        // Make app globally available for debugging
+        window.popupApp = app;
+
+    } catch (error) {
+        console.error('Failed to initialize popup application:', error);
+    }
+});
+
+/**
+ * Handle popup window unload
+ */
+window.addEventListener('beforeunload', () => {
+    console.log('Popup closing...');
+});
+
+// Export for potential testing
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { PopupApp };
+}
