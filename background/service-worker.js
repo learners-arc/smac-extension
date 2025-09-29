@@ -3,13 +3,26 @@
  * 
  * This is the background script that manages the extension lifecycle,
  * handles messaging between content scripts and popup, and coordinates
- * the automated commenting process.
+ * the automated commenting process with comprehensive core logic.
  * 
  * Chrome Extension Manifest V3 Service Worker
  */
 
-// Import configuration
+// Import utilities
 import { CONFIG } from '../config.js';
+import { storageManager } from '../utils/storage.js';
+import { commentScheduler } from '../utils/scheduler.js';
+
+// Global state management
+let extensionState = {
+    isInitialized: false,
+    currentSession: null,
+    activeTabs: new Set(),
+    platformStates: {
+        LINKEDIN: { isActive: false, tabIds: [] },
+        TWITTER: { isActive: false, tabIds: [] }
+    }
+};
 
 /**
  * Extension installation and startup
@@ -17,50 +30,59 @@ import { CONFIG } from '../config.js';
 chrome.runtime.onInstalled.addListener(async (details) => {
     console.log('Social Media Auto-Comment Extension installed/updated:', details.reason);
 
-    // Initialize default settings
-    await initializeDefaultSettings();
+    try {
+        // Initialize storage manager
+        await storageManager.initialize();
 
-    // Set up initial state
-    if (details.reason === 'install') {
-        console.log('First time installation - setting up defaults');
+        // Initialize scheduler
+        await commentScheduler.initialize();
 
-        // Open welcome/setup page (will be implemented in Part 3)
-        // chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html') });
+        // Set up initial state based on installation reason
+        if (details.reason === 'install') {
+            console.log('First time installation - setting up defaults');
+            await handleFirstInstall();
+        } else if (details.reason === 'update') {
+            console.log('Extension updated - checking for data migration');
+            await handleUpdate(details.previousVersion);
+        }
+
+        extensionState.isInitialized = true;
+        console.log('Extension initialization completed');
+
+    } catch (error) {
+        console.error('Error during extension initialization:', error);
+        await storageManager.addLog('ERROR', 'Extension initialization failed', null, { error: error.message });
     }
 });
 
 /**
- * Initialize default extension settings
+ * Handle first installation
  */
-async function initializeDefaultSettings() {
+async function handleFirstInstall() {
     try {
-        const defaultSettings = {
-            isEnabled: false,
-            selectedPlatforms: [],
-            apiKey: '',
-            commentInterval: {
-                min: CONFIG.COMMENT_INTERVAL.MIN,
-                max: CONFIG.COMMENT_INTERVAL.MAX
-            },
-            lastProcessedPosts: {},
-            totalCommentsMade: 0,
-            extensionLogs: []
-        };
+        // Log first installation
+        await storageManager.addLog('INFO', 'Extension installed for the first time');
 
-        // Check if settings already exist
-        const existingSettings = await chrome.storage.local.get([CONFIG.STORAGE_KEYS.SETTINGS]);
-
-        if (!existingSettings[CONFIG.STORAGE_KEYS.SETTINGS]) {
-            // Store default settings
-            await chrome.storage.local.set({
-                [CONFIG.STORAGE_KEYS.SETTINGS]: defaultSettings
-            });
-
-            console.log('Default settings initialized');
-        }
+        // Could open welcome page in the future
+        // chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html') });
 
     } catch (error) {
-        console.error('Error initializing default settings:', error);
+        console.error('Error handling first install:', error);
+    }
+}
+
+/**
+ * Handle extension update
+ */
+async function handleUpdate(previousVersion) {
+    try {
+        await storageManager.addLog('INFO', `Extension updated from ${previousVersion} to ${CONFIG.VERSION || '1.0.0'}`);
+
+        // Handle data migrations if needed in the future
+        // await migrateData(previousVersion);
+
+    } catch (error) {
+        console.error('Error handling update:', error);
     }
 }
 
@@ -70,172 +92,531 @@ async function initializeDefaultSettings() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('Service Worker received message:', message);
 
-    switch (message.type) {
-        case 'GET_EXTENSION_STATUS':
-            handleGetExtensionStatus(sendResponse);
-            break;
+    // Handle async responses
+    (async () => {
+        try {
+            let response;
 
-        case 'UPDATE_EXTENSION_STATUS':
-            handleUpdateExtensionStatus(message.data, sendResponse);
-            break;
+            switch (message.type) {
+                case 'GET_EXTENSION_STATUS':
+                    response = await handleGetExtensionStatus();
+                    break;
 
-        case 'POST_DETECTED':
-            handlePostDetected(message.data, sender, sendResponse);
-            break;
+                case 'UPDATE_EXTENSION_STATUS':
+                    response = await handleUpdateExtensionStatus(message.data);
+                    break;
 
-        case 'COMMENT_POSTED':
-            handleCommentPosted(message.data, sender, sendResponse);
-            break;
+                case 'START_EXTENSION':
+                    response = await handleStartExtension(message.data);
+                    break;
 
-        case 'LOG_EVENT':
-            handleLogEvent(message.data, sendResponse);
-            break;
+                case 'STOP_EXTENSION':
+                    response = await handleStopExtension();
+                    break;
 
-        default:
-            console.warn('Unknown message type:', message.type);
-            sendResponse({ success: false, error: 'Unknown message type' });
-    }
+                case 'POST_DETECTED':
+                    response = await handlePostDetected(message.data, sender);
+                    break;
 
-    // Return true to indicate we'll respond asynchronously
+                case 'COMMENT_POSTED':
+                    response = await handleCommentPosted(message.data, sender);
+                    break;
+
+                case 'COMMENT_FAILED':
+                    response = await handleCommentFailed(message.data, sender);
+                    break;
+
+                case 'GET_SCHEDULER_STATUS':
+                    response = await handleGetSchedulerStatus();
+                    break;
+
+                case 'GET_STATISTICS':
+                    response = await handleGetStatistics();
+                    break;
+
+                case 'GET_LOGS':
+                    response = await handleGetLogs(message.data);
+                    break;
+
+                case 'CLEAR_DATA':
+                    response = await handleClearData();
+                    break;
+
+                case 'LOG_EVENT':
+                    response = await handleLogEvent(message.data);
+                    break;
+
+                default:
+                    console.warn('Unknown message type:', message.type);
+                    response = { success: false, error: 'Unknown message type' };
+            }
+
+            sendResponse(response);
+
+        } catch (error) {
+            console.error('Error handling message:', error);
+            sendResponse({ success: false, error: error.message });
+        }
+    })();
+
+    // Return true to indicate async response
     return true;
 });
 
 /**
  * Get current extension status
  */
-async function handleGetExtensionStatus(sendResponse) {
+async function handleGetExtensionStatus() {
     try {
-        const settings = await chrome.storage.local.get([CONFIG.STORAGE_KEYS.SETTINGS]);
-        sendResponse({
+        const settings = await storageManager.getSettings();
+        const schedulerStatus = commentScheduler.getStatus();
+        const statistics = await storageManager.getStatistics();
+
+        return {
             success: true,
-            data: settings[CONFIG.STORAGE_KEYS.SETTINGS] || {}
-        });
+            data: {
+                ...settings,
+                schedulerStatus,
+                statistics,
+                extensionState: {
+                    isInitialized: extensionState.isInitialized,
+                    currentSession: extensionState.currentSession,
+                    activeTabs: Array.from(extensionState.activeTabs),
+                    platformStates: extensionState.platformStates
+                }
+            }
+        };
     } catch (error) {
         console.error('Error getting extension status:', error);
-        sendResponse({ success: false, error: error.message });
+        return { success: false, error: error.message };
     }
 }
 
 /**
- * Update extension status
+ * Update extension status/settings
  */
-async function handleUpdateExtensionStatus(data, sendResponse) {
+async function handleUpdateExtensionStatus(data) {
     try {
-        const settings = await chrome.storage.local.get([CONFIG.STORAGE_KEYS.SETTINGS]);
-        const currentSettings = settings[CONFIG.STORAGE_KEYS.SETTINGS] || {};
+        const updatedSettings = await storageManager.updateSettings(data);
 
-        // Merge with new data
-        const updatedSettings = { ...currentSettings, ...data };
+        // If interval was updated, update scheduler
+        if (data.commentInterval) {
+            commentScheduler.updateInterval(data.commentInterval);
+        }
 
-        await chrome.storage.local.set({
-            [CONFIG.STORAGE_KEYS.SETTINGS]: updatedSettings
-        });
+        await storageManager.addLog('INFO', 'Extension settings updated', null, { updates: data });
 
-        console.log('Extension settings updated:', updatedSettings);
-        sendResponse({ success: true, data: updatedSettings });
+        return { success: true, data: updatedSettings };
 
     } catch (error) {
         console.error('Error updating extension status:', error);
-        sendResponse({ success: false, error: error.message });
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Start the extension
+ */
+async function handleStartExtension(data = {}) {
+    try {
+        const settings = await storageManager.getSettings();
+
+        // Validation
+        if (!settings.apiKey) {
+            throw new Error('API key is required');
+        }
+
+        if (!settings.selectedPlatforms || settings.selectedPlatforms.length === 0) {
+            throw new Error('At least one platform must be selected');
+        }
+
+        // Start session
+        extensionState.currentSession = await storageManager.startSession();
+
+        // Update settings to enabled
+        await storageManager.updateSettings({ isEnabled: true });
+
+        // Start scheduler with current settings
+        await commentScheduler.start({
+            commentInterval: settings.commentInterval || { min: 70000, max: 90000 }
+        });
+
+        // Activate monitoring on selected platforms
+        await activatePlatformMonitoring(settings.selectedPlatforms);
+
+        await storageManager.addLog('INFO', 'Extension started successfully', null, {
+            sessionId: extensionState.currentSession,
+            platforms: settings.selectedPlatforms
+        });
+
+        return {
+            success: true,
+            data: {
+                sessionId: extensionState.currentSession,
+                message: 'Extension started successfully'
+            }
+        };
+
+    } catch (error) {
+        console.error('Error starting extension:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Stop the extension
+ */
+async function handleStopExtension() {
+    try {
+        // Stop scheduler
+        await commentScheduler.stop();
+
+        // End current session
+        if (extensionState.currentSession) {
+            await storageManager.endSession();
+        }
+
+        // Update settings to disabled
+        await storageManager.updateSettings({ isEnabled: false });
+
+        // Deactivate platform monitoring
+        await deactivatePlatformMonitoring();
+
+        // Reset state
+        extensionState.currentSession = null;
+        extensionState.activeTabs.clear();
+        extensionState.platformStates = {
+            LINKEDIN: { isActive: false, tabIds: [] },
+            TWITTER: { isActive: false, tabIds: [] }
+        };
+
+        await storageManager.addLog('INFO', 'Extension stopped successfully');
+
+        return {
+            success: true,
+            data: { message: 'Extension stopped successfully' }
+        };
+
+    } catch (error) {
+        console.error('Error stopping extension:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Activate platform monitoring
+ */
+async function activatePlatformMonitoring(platforms) {
+    try {
+        for (const platform of platforms) {
+            extensionState.platformStates[platform].isActive = true;
+
+            // Find existing tabs for this platform
+            const tabs = await chrome.tabs.query({});
+            for (const tab of tabs) {
+                if (await isPlatformTab(tab.url, platform)) {
+                    extensionState.platformStates[platform].tabIds.push(tab.id);
+                    extensionState.activeTabs.add(tab.id);
+
+                    // Send activation message to content script
+                    try {
+                        await chrome.tabs.sendMessage(tab.id, {
+                            type: 'EXTENSION_ACTIVE',
+                            platform: platform,
+                            sessionId: extensionState.currentSession
+                        });
+                    } catch (error) {
+                        // Content script might not be loaded yet
+                        console.log(`Could not send activation message to tab ${tab.id}`);
+                    }
+                }
+            }
+        }
+
+        console.log('Platform monitoring activated for:', platforms);
+
+    } catch (error) {
+        console.error('Error activating platform monitoring:', error);
+    }
+}
+
+/**
+ * Deactivate platform monitoring
+ */
+async function deactivatePlatformMonitoring() {
+    try {
+        // Send deactivation messages
+        for (const tabId of extensionState.activeTabs) {
+            try {
+                await chrome.tabs.sendMessage(tabId, {
+                    type: 'EXTENSION_INACTIVE'
+                });
+            } catch (error) {
+                // Tab might be closed or content script unloaded
+            }
+        }
+
+        // Reset platform states
+        for (const platform in extensionState.platformStates) {
+            extensionState.platformStates[platform] = { isActive: false, tabIds: [] };
+        }
+
+        extensionState.activeTabs.clear();
+
+        console.log('Platform monitoring deactivated');
+
+    } catch (error) {
+        console.error('Error deactivating platform monitoring:', error);
     }
 }
 
 /**
  * Handle post detection from content scripts
  */
-async function handlePostDetected(data, sender, sendResponse) {
+async function handlePostDetected(data, sender) {
     try {
-        console.log('Post detected:', data);
+        const { platform, posts } = data;
+        const tabId = sender.tab?.id;
 
-        // This will be implemented in later parts
-        // For now, just acknowledge receipt
-        sendResponse({ success: true, message: 'Post detection acknowledged' });
+        console.log(`Post detected on ${platform}:`, posts?.length || 0, 'posts');
+
+        // Log post detection
+        await storageManager.addLog('INFO', `Posts detected on ${platform}`, platform, {
+            tabId,
+            postCount: posts?.length || 0,
+            url: sender.tab?.url
+        });
+
+        // This will trigger the commenting process in future parts
+        // For now, just acknowledge
+        return {
+            success: true,
+            message: 'Post detection acknowledged',
+            shouldProcess: extensionState.currentSession !== null
+        };
 
     } catch (error) {
         console.error('Error handling post detection:', error);
-        sendResponse({ success: false, error: error.message });
+        return { success: false, error: error.message };
     }
 }
 
 /**
  * Handle comment posting confirmation
  */
-async function handleCommentPosted(data, sender, sendResponse) {
+async function handleCommentPosted(data, sender) {
     try {
-        console.log('Comment posted:', data);
+        const { platform, postData, comment } = data;
 
-        // Update statistics
-        const settings = await chrome.storage.local.get([CONFIG.STORAGE_KEYS.SETTINGS]);
-        const currentSettings = settings[CONFIG.STORAGE_KEYS.SETTINGS] || {};
+        // Record the comment in storage
+        await storageManager.recordComment(platform, postData);
 
-        currentSettings.totalCommentsMade = (currentSettings.totalCommentsMade || 0) + 1;
+        // Mark post as processed
+        if (postData.id) {
+            await storageManager.addProcessedPost(platform, postData.id, {
+                commentPosted: true,
+                comment: comment,
+                timestamp: Date.now()
+            });
+        }
 
-        await chrome.storage.local.set({
-            [CONFIG.STORAGE_KEYS.SETTINGS]: currentSettings
-        });
+        console.log(`Comment posted successfully on ${platform}`);
 
-        sendResponse({ success: true, message: 'Comment logged successfully' });
+        return {
+            success: true,
+            message: 'Comment logged successfully'
+        };
 
     } catch (error) {
         console.error('Error handling comment posted:', error);
-        sendResponse({ success: false, error: error.message });
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Handle comment posting failure
+ */
+async function handleCommentFailed(data, sender) {
+    try {
+        const { platform, postData, error, reason } = data;
+
+        await storageManager.addLog('ERROR', `Comment failed on ${platform}`, platform, {
+            postData,
+            error,
+            reason,
+            url: sender.tab?.url
+        });
+
+        console.log(`Comment failed on ${platform}:`, reason);
+
+        return {
+            success: true,
+            message: 'Comment failure logged'
+        };
+
+    } catch (error) {
+        console.error('Error handling comment failure:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Get scheduler status
+ */
+async function handleGetSchedulerStatus() {
+    try {
+        const status = commentScheduler.getStatus();
+        const statistics = commentScheduler.getStatistics();
+
+        return {
+            success: true,
+            data: {
+                ...status,
+                statistics
+            }
+        };
+    } catch (error) {
+        console.error('Error getting scheduler status:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Get extension statistics
+ */
+async function handleGetStatistics() {
+    try {
+        const statistics = await storageManager.getStatistics();
+        const schedulerStats = commentScheduler.getStatistics();
+
+        return {
+            success: true,
+            data: {
+                ...statistics,
+                scheduler: schedulerStats,
+                session: extensionState.currentSession ? {
+                    id: extensionState.currentSession,
+                    activeTabs: Array.from(extensionState.activeTabs).length
+                } : null
+            }
+        };
+    } catch (error) {
+        console.error('Error getting statistics:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Get logs
+ */
+async function handleGetLogs(data = {}) {
+    try {
+        const limit = data.limit || 100;
+        const logs = await storageManager.getLogs(limit);
+
+        return {
+            success: true,
+            data: logs
+        };
+    } catch (error) {
+        console.error('Error getting logs:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Clear all data
+ */
+async function handleClearData() {
+    try {
+        // Stop extension if running
+        if (extensionState.currentSession) {
+            await handleStopExtension();
+        }
+
+        // Clear all stored data
+        await storageManager.clearAll();
+
+        // Reset scheduler statistics
+        commentScheduler.resetStatistics();
+
+        return {
+            success: true,
+            data: { message: 'All data cleared successfully' }
+        };
+    } catch (error) {
+        console.error('Error clearing data:', error);
+        return { success: false, error: error.message };
     }
 }
 
 /**
  * Handle logging events
  */
-async function handleLogEvent(data, sendResponse) {
+async function handleLogEvent(data) {
     try {
-        const logEntry = {
-            timestamp: Date.now(),
-            level: data.level || 'INFO',
-            message: data.message,
-            platform: data.platform,
-            details: data.details || {}
-        };
+        const { level, message, platform, details } = data;
 
-        // Store log entry (implement proper log management in Part 9)
-        console.log('Log entry:', logEntry);
+        await storageManager.addLog(level || 'INFO', message, platform, details || {});
 
-        sendResponse({ success: true, message: 'Log entry recorded' });
+        return { success: true, message: 'Log entry recorded' };
 
     } catch (error) {
         console.error('Error handling log event:', error);
-        sendResponse({ success: false, error: error.message });
+        return { success: false, error: error.message };
     }
 }
 
 /**
- * Handle tab updates to detect platform navigation
+ * Handle tab updates to detect platform navigation and manage active tabs
  */
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     // Only process when the tab is completely loaded
     if (changeInfo.status !== 'complete' || !tab.url) return;
 
     try {
-        const settings = await chrome.storage.local.get([CONFIG.STORAGE_KEYS.SETTINGS]);
-        const currentSettings = settings[CONFIG.STORAGE_KEYS.SETTINGS] || {};
+        const settings = await storageManager.getSettings();
 
         // Check if extension is enabled
-        if (!currentSettings.isEnabled) return;
+        if (!settings.isEnabled || !extensionState.currentSession) return;
 
         // Detect platform based on URL
         let platform = null;
-        if (tab.url.includes('linkedin.com')) {
+        if (await isPlatformTab(tab.url, 'LINKEDIN')) {
             platform = 'LINKEDIN';
-        } else if (tab.url.includes('x.com') || tab.url.includes('twitter.com')) {
+        } else if (await isPlatformTab(tab.url, 'TWITTER')) {
             platform = 'TWITTER';
         }
 
-        if (platform && currentSettings.selectedPlatforms.includes(platform)) {
+        if (platform && settings.selectedPlatforms?.includes(platform)) {
             console.log(`User navigated to ${platform} - extension is active`);
 
-            // Send message to content script (will be implemented in Parts 5 & 6)
-            // chrome.tabs.sendMessage(tabId, { 
-            //     type: 'EXTENSION_ACTIVE', 
-            //     platform: platform 
-            // });
+            // Add to active tabs
+            extensionState.activeTabs.add(tabId);
+            if (!extensionState.platformStates[platform].tabIds.includes(tabId)) {
+                extensionState.platformStates[platform].tabIds.push(tabId);
+            }
+
+            // Send activation message to content script
+            try {
+                await chrome.tabs.sendMessage(tabId, {
+                    type: 'EXTENSION_ACTIVE',
+                    platform: platform,
+                    sessionId: extensionState.currentSession,
+                    settings: {
+                        csFilterEnabled: settings.csFilterEnabled,
+                        smartTypingEnabled: settings.smartTypingEnabled
+                    }
+                });
+
+                await storageManager.addLog('INFO', `Platform activated: ${platform}`, platform, {
+                    tabId,
+                    url: tab.url
+                });
+
+            } catch (error) {
+                console.log(`Content script not ready on tab ${tabId}:`, error.message);
+            }
         }
 
     } catch (error) {
@@ -244,46 +625,326 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 
 /**
+ * Handle tab removal to clean up active tabs
+ */
+chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+    try {
+        // Remove from active tabs
+        extensionState.activeTabs.delete(tabId);
+
+        // Remove from platform states
+        for (const platform in extensionState.platformStates) {
+            const index = extensionState.platformStates[platform].tabIds.indexOf(tabId);
+            if (index > -1) {
+                extensionState.platformStates[platform].tabIds.splice(index, 1);
+                console.log(`Tab ${tabId} removed from ${platform} monitoring`);
+            }
+        }
+
+    } catch (error) {
+        console.error('Error handling tab removal:', error);
+    }
+});
+
+/**
+ * Handle window focus changes to manage extension activity
+ */
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
+    try {
+        if (!extensionState.currentSession) return;
+
+        if (windowId === chrome.windows.WINDOW_ID_NONE) {
+            // Browser lost focus - pause scheduler temporarily
+            console.log('Browser lost focus - pausing activity');
+        } else {
+            // Browser gained focus - resume normal activity
+            console.log('Browser gained focus - resuming activity');
+        }
+
+    } catch (error) {
+        console.error('Error handling window focus change:', error);
+    }
+});
+
+/**
  * Handle extension action (popup) clicks
  */
 chrome.action.onClicked.addListener(async (tab) => {
     console.log('Extension icon clicked');
-    // Popup will handle this in Part 3
+    // Popup will handle this automatically
 });
 
 /**
  * Handle keyboard shortcuts
  */
 chrome.commands.onCommand.addListener(async (command) => {
-    if (command === 'toggle-extension') {
-        console.log('Toggle extension shortcut pressed');
+    try {
+        if (command === 'toggle-extension') {
+            console.log('Toggle extension shortcut pressed');
 
-        try {
-            const settings = await chrome.storage.local.get([CONFIG.STORAGE_KEYS.SETTINGS]);
-            const currentSettings = settings[CONFIG.STORAGE_KEYS.SETTINGS] || {};
+            const settings = await storageManager.getSettings();
 
-            // Toggle extension state
-            currentSettings.isEnabled = !currentSettings.isEnabled;
-
-            await chrome.storage.local.set({
-                [CONFIG.STORAGE_KEYS.SETTINGS]: currentSettings
-            });
-
-            console.log(`Extension ${currentSettings.isEnabled ? 'enabled' : 'disabled'} via shortcut`);
-
-        } catch (error) {
-            console.error('Error toggling extension:', error);
+            if (settings.isEnabled) {
+                await handleStopExtension();
+                console.log('Extension disabled via shortcut');
+            } else {
+                // Check if can be started
+                if (settings.apiKey && settings.selectedPlatforms?.length > 0) {
+                    await handleStartExtension();
+                    console.log('Extension enabled via shortcut');
+                } else {
+                    console.log('Cannot start extension - missing configuration');
+                    await storageManager.addLog('WARN', 'Shortcut toggle failed - missing configuration');
+                }
+            }
         }
+    } catch (error) {
+        console.error('Error handling keyboard command:', error);
     }
 });
+
+/**
+ * Handle scheduled comment execution messages from scheduler
+ */
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'EXECUTE_SCHEDULED_COMMENT') {
+        // This is handled by the main message listener above
+        // But we can add specific logic here if needed
+        console.log('Scheduled comment execution triggered');
+    }
+});
+
+/**
+ * Handle system idle state changes
+ */
+chrome.idle.onStateChanged.addListener(async (newState) => {
+    try {
+        console.log('System idle state changed to:', newState);
+
+        if (!extensionState.currentSession) return;
+
+        if (newState === 'idle' || newState === 'locked') {
+            // System is idle - reduce activity
+            await storageManager.addLog('INFO', `System state: ${newState} - reducing activity`);
+        } else if (newState === 'active') {
+            // System is active - resume normal activity
+            await storageManager.addLog('INFO', 'System active - resuming normal activity');
+
+            // Check if scheduler needs to be restarted
+            if (!commentScheduler.getStatus().isRunning) {
+                const settings = await storageManager.getSettings();
+                if (settings.isEnabled) {
+                    await commentScheduler.start({ commentInterval: settings.commentInterval });
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('Error handling idle state change:', error);
+    }
+});
+
+/**
+ * Handle alarm events (for backup scheduling)
+ */
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+    try {
+        console.log('Alarm triggered:', alarm.name);
+
+        switch (alarm.name) {
+            case 'cleanup':
+                await performPeriodicCleanup();
+                break;
+            case 'backup':
+                await performPeriodicBackup();
+                break;
+            case 'health-check':
+                await performHealthCheck();
+                break;
+        }
+
+    } catch (error) {
+        console.error('Error handling alarm:', error);
+    }
+});
+
+/**
+ * Set up periodic maintenance alarms
+ */
+async function setupPeriodicAlarms() {
+    try {
+        // Daily cleanup alarm
+        chrome.alarms.create('cleanup', {
+            delayInMinutes: 60, // First run in 1 hour
+            periodInMinutes: 24 * 60 // Then every 24 hours
+        });
+
+        // Weekly backup alarm
+        chrome.alarms.create('backup', {
+            delayInMinutes: 24 * 60, // First run in 24 hours
+            periodInMinutes: 7 * 24 * 60 // Then every 7 days
+        });
+
+        // Health check every 30 minutes
+        chrome.alarms.create('health-check', {
+            delayInMinutes: 30,
+            periodInMinutes: 30
+        });
+
+        console.log('Periodic alarms set up successfully');
+
+    } catch (error) {
+        console.error('Error setting up periodic alarms:', error);
+    }
+}
+
+/**
+ * Perform periodic cleanup
+ */
+async function performPeriodicCleanup() {
+    try {
+        console.log('Performing periodic cleanup...');
+
+        await storageManager.cleanupOldData();
+
+        // Check storage usage
+        const usage = await storageManager.getStorageUsage();
+        if (usage && usage.percentage > 80) {
+            await storageManager.addLog('WARN', `Storage usage high: ${usage.percentage}%`, null, usage);
+        }
+
+        await storageManager.addLog('INFO', 'Periodic cleanup completed');
+
+    } catch (error) {
+        console.error('Error during periodic cleanup:', error);
+    }
+}
+
+/**
+ * Perform periodic backup (optional feature)
+ */
+async function performPeriodicBackup() {
+    try {
+        console.log('Performing periodic backup check...');
+
+        // This could implement data export functionality
+        await storageManager.addLog('INFO', 'Periodic backup check completed');
+
+    } catch (error) {
+        console.error('Error during periodic backup:', error);
+    }
+}
+
+/**
+ * Perform health check
+ */
+async function performHealthCheck() {
+    try {
+        // Check if extension is in a healthy state
+        const settings = await storageManager.getSettings();
+        const schedulerStatus = commentScheduler.getStatus();
+
+        // Check for inconsistencies
+        const issues = [];
+
+        if (settings.isEnabled && !schedulerStatus.isRunning) {
+            issues.push('Extension enabled but scheduler not running');
+        }
+
+        if (extensionState.currentSession && !settings.isEnabled) {
+            issues.push('Active session but extension disabled');
+        }
+
+        if (issues.length > 0) {
+            await storageManager.addLog('WARN', 'Health check issues detected', null, { issues });
+
+            // Attempt to fix issues
+            if (settings.isEnabled && !schedulerStatus.isRunning) {
+                try {
+                    await commentScheduler.start({ commentInterval: settings.commentInterval });
+                    await storageManager.addLog('INFO', 'Scheduler restarted during health check');
+                } catch (error) {
+                    await storageManager.addLog('ERROR', 'Failed to restart scheduler', null, { error: error.message });
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('Error during health check:', error);
+    }
+}
+
+/**
+ * Check if a URL belongs to a specific platform
+ */
+async function isPlatformTab(url, platform) {
+    if (!url) return false;
+
+    switch (platform) {
+        case 'LINKEDIN':
+            return url.includes('linkedin.com');
+        case 'TWITTER':
+            return url.includes('x.com') || url.includes('twitter.com');
+        default:
+            return false;
+    }
+}
+
+/**
+ * Service Worker startup initialization
+ */
+async function initializeServiceWorker() {
+    try {
+        console.log('Service Worker starting up...');
+
+        // Set up periodic alarms
+        await setupPeriodicAlarms();
+
+        // Check if extension was previously running and restore state
+        const settings = await storageManager.getSettings();
+        if (settings.isEnabled) {
+            // Extension was enabled - check if we should restart it
+            await storageManager.addLog('INFO', 'Extension was previously enabled - checking restart conditions');
+
+            // Don't auto-restart for now, let user manually start
+            await storageManager.updateSettings({ isEnabled: false });
+        }
+
+        extensionState.isInitialized = true;
+        console.log('Service Worker initialization completed');
+
+    } catch (error) {
+        console.error('Error during Service Worker initialization:', error);
+    }
+}
 
 /**
  * Service Worker keep-alive mechanism
  */
 const KEEP_ALIVE_INTERVAL = 30000; // 30 seconds
 
-setInterval(() => {
-    console.log('Service Worker keep-alive ping');
+setInterval(async () => {
+    try {
+        // Perform lightweight operations to keep service worker alive
+        const timestamp = Date.now();
+
+        // Check scheduler health
+        if (extensionState.currentSession && !commentScheduler.getStatus().isRunning) {
+            console.warn('Scheduler not running during active session - investigating');
+            await performHealthCheck();
+        }
+
+        // Log keep-alive periodically (every 5 minutes)
+        if (timestamp % 300000 < 30000) { // 5 minutes = 300000ms
+            console.log('Service Worker keep-alive ping');
+        }
+
+    } catch (error) {
+        console.error('Error in keep-alive mechanism:', error);
+    }
 }, KEEP_ALIVE_INTERVAL);
+
+// Initialize service worker
+initializeServiceWorker();
 
 console.log('Social Media Auto-Comment Service Worker initialized');
