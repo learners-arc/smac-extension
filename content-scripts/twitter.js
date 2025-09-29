@@ -9,13 +9,14 @@
  * - Posts: article[data-testid="tweet"], .css-175oi2r
  * - Comment box: [data-testid="tweetTextarea_0"], .public-DraftEditorPlaceholder-inner
  * 
- * Part 6: Complete implementation with content scraping and data extraction
+ * Part 7: Enhanced with Gemini API integration for intelligent comment generation
  */
 
 // Import utilities (Note: These will be available through the extension context)
 // import { twitterSelectors } from '../utils/twitter-selectors.js';
 // import { contentFilter } from '../utils/content-filter.js';
 // import { dataExtractor } from '../utils/data-extractor.js';
+// import { geminiAPI } from '../services/gemini-api.js';
 
 /**
  * Twitter/X Auto-Comment Handler Class
@@ -27,7 +28,7 @@ class TwitterHandler {
         this.isScanning = false;
         this.processedTweets = new Set();
         this.observedElements = new Set();
-        
+
         // Configuration
         this.config = {
             scanInterval: 5000,           // 5 seconds between scans
@@ -219,7 +220,7 @@ class TwitterHandler {
                 try {
                     const tweetData = await this.extractTweetData(tweetElement);
                     if (tweetData && !this.processedTweets.has(tweetData.id)) {
-                        
+
                         // Analyze content for relevance
                         const analysis = this.analyzeContentRelevance(tweetData);
                         tweetData.analysis = analysis;
@@ -241,7 +242,7 @@ class TwitterHandler {
             }
 
             this.log(`Scan completed: ${processed} tweets processed, ${extractedTweets.length} relevant`);
-            
+
             // Send results to background script if any relevant tweets found
             if (extractedTweets.length > 0) {
                 chrome.runtime.sendMessage({
@@ -454,7 +455,7 @@ class TwitterHandler {
         try {
             // Simplified content analysis (full contentFilter integration would be better)
             const text = (tweetData.content.text + ' ' + tweetData.author.name).toLowerCase();
-            
+
             // CS-relevant keywords
             const csKeywords = [
                 'programming', 'coding', 'software', 'development', 'developer',
@@ -503,9 +504,32 @@ class TwitterHandler {
      * @param {string} reply - Reply text
      * @returns {Promise<Object>} Result object
      */
-    async postReply(tweetId, reply) {
+    /**
+     * Post a reply to a Twitter/X tweet with Gemini API integration
+     * @param {string} tweetId - Tweet ID to reply to
+     * @param {string|Object} replyOrTweetData - Reply text or tweet data object
+     * @returns {Promise<Object>} Result object
+     */
+    async postReply(tweetId, replyOrTweetData) {
         try {
             this.log(`Attempting to post reply on tweet ${tweetId}`);
+
+            let reply;
+            let tweetData;
+
+            // Handle both old API (reply string) and new API (tweet data object)
+            if (typeof replyOrTweetData === 'string') {
+                // Legacy usage - direct reply string
+                reply = replyOrTweetData;
+            } else {
+                // New usage - tweet data object, generate reply with Gemini API
+                tweetData = replyOrTweetData;
+                reply = await this.generateReplyWithGemini(tweetData);
+
+                if (!reply) {
+                    throw new Error('Failed to generate reply');
+                }
+            }
 
             // Find the tweet element by ID
             const tweetElement = await this.findTweetElementById(tweetId);
@@ -530,7 +554,7 @@ class TwitterHandler {
 
             // Type reply with human-like behavior
             await this.typeWithDelay(textArea, reply);
-            
+
             // Wait before submitting
             await this.delay(this.config.replyDelay);
 
@@ -541,29 +565,133 @@ class TwitterHandler {
             }
 
             submitButton.click();
-            
+
             // Wait for submission to complete
             await this.delay(3000);
 
             this.stats.repliesPosted++;
             this.log(`Reply posted successfully on tweet ${tweetId}`);
 
+            // Log the activity if we have tweet data
+            if (tweetData) {
+                await this.logReplyActivity(tweetData, reply, 'success');
+            }
+
             return {
                 success: true,
                 postId: tweetId,
                 comment: reply,
+                generatedReply: tweetData ? true : false,
                 timestamp: Date.now()
             };
 
         } catch (error) {
             this.error('Error posting reply:', error);
             this.stats.errors++;
+
+            // Log the error if we have tweet data
+            if (typeof replyOrTweetData === 'object') {
+                await this.logReplyActivity(replyOrTweetData, reply || null, 'error', error.message);
+            }
+
             return {
                 success: false,
                 postId: tweetId,
                 error: error.message,
                 timestamp: Date.now()
             };
+        }
+    }
+
+    /**
+     * Generate reply using Gemini API
+     * @param {Object} tweetData - The tweet data
+     * @return {Promise<string|null>} - Generated reply or null
+     */
+    async generateReplyWithGemini(tweetData) {
+        try {
+            // Get user preferences for reply style
+            const settings = await chrome.storage.sync.get([
+                'commentStyle',
+                'commentTone',
+                'commentLength'
+            ]);
+
+            const options = {
+                style: settings.commentStyle || 'casual', // Twitter defaults to casual
+                tone: settings.commentTone || 'friendly',
+                length: settings.commentLength || 'concise (1 sentence)'
+            };
+
+            this.log('Generating reply with Gemini API, options:', options);
+
+            // Generate reply using Gemini API
+            const reply = await geminiAPI.generateComment(tweetData, 'twitter', options);
+
+            if (!reply || reply.trim().length === 0) {
+                console.warn('[Twitter Handler] Empty reply generated');
+                return null;
+            }
+
+            // Additional validation for Twitter
+            if (reply.length > 280) { // Twitter character limit
+                console.warn('[Twitter Handler] Reply too long, truncating');
+                return reply.substring(0, 277) + '...';
+            }
+
+            this.log('Generated reply:', reply);
+            return reply;
+
+        } catch (error) {
+            this.error('Failed to generate reply with Gemini API:', error);
+
+            // Check if it's an API key issue
+            if (error.message.includes('API key')) {
+                // Notify background script about API key issue
+                chrome.runtime.sendMessage({
+                    type: 'API_KEY_ERROR',
+                    platform: 'twitter',
+                    message: 'Please set your Gemini API key in the extension popup.'
+                });
+            }
+
+            return null;
+        }
+    }
+
+    /**
+     * Log reply activity for analytics and debugging
+     * @param {Object} tweetData - The tweet data
+     * @param {string} reply - The generated reply
+     * @param {string} status - Status: 'success', 'failed', 'error'
+     * @param {string} errorMessage - Error message if applicable
+     */
+    async logReplyActivity(tweetData, reply, status, errorMessage = null) {
+        try {
+            const logEntry = {
+                timestamp: Date.now(),
+                platform: 'twitter',
+                postId: tweetData.id,
+                authorName: tweetData.author?.name,
+                postContent: tweetData.content?.substring(0, 100) + '...',
+                generatedReply: reply,
+                status,
+                errorMessage,
+                relevanceScore: tweetData.relevanceAnalysis?.score || 0
+            };
+
+            // Get existing logs
+            const result = await chrome.storage.local.get(['commentLogs']);
+            const logs = result.commentLogs || [];
+
+            // Add new log and keep only last 200 entries
+            logs.unshift(logEntry);
+            const trimmedLogs = logs.slice(0, 200);
+
+            await chrome.storage.local.set({ commentLogs: trimmedLogs });
+
+        } catch (error) {
+            this.error('Failed to log reply activity:', error);
         }
     }
 
@@ -576,8 +704,8 @@ class TwitterHandler {
     }
 
     isXInterface() {
-        return window.location.hostname.includes('x.com') || 
-               document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null;
+        return window.location.hostname.includes('x.com') ||
+            document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]') !== null;
     }
 
     async waitForPageLoad() {
@@ -592,14 +720,14 @@ class TwitterHandler {
 
     async waitForElement(selector, timeout = 10000) {
         const startTime = Date.now();
-        
+
         while (Date.now() - startTime < timeout) {
             const element = document.querySelector(selector);
             if (element) return element;
-            
+
             await this.delay(100);
         }
-        
+
         throw new Error(`Element ${selector} not found within ${timeout}ms`);
     }
 
@@ -610,7 +738,7 @@ class TwitterHandler {
         // Must have tweet text or media
         const hasText = tweetElement.querySelector(this.selectors.content.text) !== null;
         const hasMedia = tweetElement.querySelector(this.selectors.content.media) !== null;
-        
+
         if (!hasText && !hasMedia) return false;
 
         // Must have author information
@@ -619,7 +747,7 @@ class TwitterHandler {
 
         // Should not be promoted (optional filter)
         const isPromoted = tweetElement.querySelector(this.selectors.metadata.promoted) !== null;
-        
+
         return !isPromoted;
     }
 
@@ -638,48 +766,48 @@ class TwitterHandler {
     parseCount(text) {
         if (!text) return 0;
         const cleanText = text.replace(/[^\d.,kKmM]/g, '');
-        
+
         if (cleanText.includes('K') || cleanText.includes('k')) {
             return Math.floor(parseFloat(cleanText) * 1000);
         }
         if (cleanText.includes('M') || cleanText.includes('m')) {
             return Math.floor(parseFloat(cleanText) * 1000000);
         }
-        
+
         return parseInt(cleanText) || 0;
     }
 
     async findTweetElementById(tweetId) {
         const allTweets = document.querySelectorAll(this.selectors.posts);
-        
+
         for (const tweet of allTweets) {
             const extractedId = this.extractTweetId(tweet);
             if (extractedId === tweetId) {
                 return tweet;
             }
         }
-        
+
         return null;
     }
 
     async typeWithDelay(element, text, delay = 50) {
         // Twitter uses a more complex editor, so we need to handle it carefully
         element.focus();
-        
+
         // Clear existing content
         element.textContent = '';
-        
+
         // For Twitter's compose text area, we need to trigger the right events
         for (let i = 0; i < text.length; i++) {
             element.textContent += text[i];
-            
+
             // Trigger events that Twitter expects
             const inputEvent = new Event('input', { bubbles: true });
             const changeEvent = new Event('change', { bubbles: true });
-            
+
             element.dispatchEvent(inputEvent);
             element.dispatchEvent(changeEvent);
-            
+
             await this.delay(delay + Math.random() * 30); // Add randomness
         }
 
@@ -696,7 +824,7 @@ class TwitterHandler {
                     const addedTweets = Array.from(mutation.addedNodes)
                         .filter(node => node.nodeType === Node.ELEMENT_NODE)
                         .some(node => node.matches && node.matches(this.selectors.posts));
-                    
+
                     if (addedTweets) {
                         setTimeout(() => this.scanForTweets(), 1000);
                     }
@@ -716,13 +844,13 @@ class TwitterHandler {
 
     setupScrollHandler() {
         let scrollTimeout;
-        
+
         window.addEventListener('scroll', () => {
             clearTimeout(scrollTimeout);
             scrollTimeout = setTimeout(() => {
                 // Check if near bottom of page
                 const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-                
+
                 if (scrollTop + clientHeight >= scrollHeight - 1000) {
                     this.log('Near bottom of page, scanning for new tweets');
                     setTimeout(() => this.scanForTweets(), this.config.scrollDelay);
@@ -778,7 +906,7 @@ const urlObserver = new MutationObserver(() => {
     if (window.location.href !== currentUrl) {
         currentUrl = window.location.href;
         console.log('Twitter/X page navigation detected, reinitializing...');
-        
+
         // Reinitialize after navigation
         setTimeout(() => {
             twitterHandler.initialize();

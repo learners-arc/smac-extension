@@ -1,20 +1,20 @@
 /**
- * LinkedIn Content Script for Social Media Auto-Comment Extension
+ * LinkedIn Content Script - Advanced post detection and commenting
+ * Handles LinkedIn's dynamic content structure and implements intelligent commenting
  * 
- * This script runs on LinkedIn pages to detect posts, extract data,
- * filter for CS-relevant content, and coordinate with the background
- * script for automated commenting.
- * 
- * Target selectors:
- * - Posts: .feed-shared-update-v2, .ember-view[data-urn]
- * - Comment box: .comments-comment-box-comment__text-editor
- * 
- * Part 5: Complete implementation with content scraping and data extraction
+ * Features:
+ * - Advanced post detection using LinkedIn's data attributes
+ * - CS-relevant content filtering
+ * - Human-like comment posting with typing simulation
+ * - Dynamic content monitoring with mutation observers
+ * - Comprehensive error handling and retry mechanisms
+ * - Gemini API integration for intelligent comment generation
  */
 
-// Import utilities (Note: These will be available through the extension context)
-// import { contentFilter } from '../utils/content-filter.js';
-// import { dataExtractor } from '../utils/data-extractor.js';
+// Import required modules
+import { ContentFilter } from '../utils/content-filter.js';
+import { DataExtractor } from '../utils/data-extractor.js';
+import { geminiAPI } from '../services/gemini-api.js';
 
 /**
  * LinkedIn Auto-Comment Handler Class
@@ -428,14 +428,31 @@ class LinkedInHandler {
     }
 
     /**
-     * Post a comment on a LinkedIn post
+     * Post a comment on a LinkedIn post with Gemini API integration
      * @param {string} postId - Post ID to comment on
-     * @param {string} comment - Comment text
+     * @param {string|Object} commentOrPostData - Comment text or post data object
      * @returns {Promise<Object>} Result object
      */
-    async postComment(postId, comment) {
+    async postComment(postId, commentOrPostData) {
         try {
             this.log(`Attempting to post comment on post ${postId}`);
+
+            let comment;
+            let postData;
+
+            // Handle both old API (comment string) and new API (post data object)
+            if (typeof commentOrPostData === 'string') {
+                // Legacy usage - direct comment string
+                comment = commentOrPostData;
+            } else {
+                // New usage - post data object, generate comment with Gemini API
+                postData = commentOrPostData;
+                comment = await this.generateCommentWithGemini(postData);
+
+                if (!comment) {
+                    throw new Error('Failed to generate comment');
+                }
+            }
 
             // Find the post element by ID
             const postElement = await this.findPostElementById(postId);
@@ -476,22 +493,126 @@ class LinkedInHandler {
             this.stats.commentsPosted++;
             this.log(`Comment posted successfully on post ${postId}`);
 
+            // Log the activity if we have post data
+            if (postData) {
+                await this.logCommentActivity(postData, comment, 'success');
+            }
+
             return {
                 success: true,
                 postId,
                 comment,
+                generatedComment: postData ? true : false,
                 timestamp: Date.now()
             };
 
         } catch (error) {
             this.error('Error posting comment:', error);
             this.stats.errors++;
+
+            // Log the error if we have post data
+            if (typeof commentOrPostData === 'object') {
+                await this.logCommentActivity(commentOrPostData, comment || null, 'error', error.message);
+            }
+
             return {
                 success: false,
                 postId,
                 error: error.message,
                 timestamp: Date.now()
             };
+        }
+    }
+
+    /**
+     * Generate comment using Gemini API
+     * @param {Object} postData - The post data
+     * @return {Promise<string|null>} - Generated comment or null
+     */
+    async generateCommentWithGemini(postData) {
+        try {
+            // Get user preferences for comment style
+            const settings = await chrome.storage.sync.get([
+                'commentStyle',
+                'commentTone',
+                'commentLength'
+            ]);
+
+            const options = {
+                style: settings.commentStyle || 'engaging',
+                tone: settings.commentTone || 'professional yet friendly',
+                length: settings.commentLength || 'concise (1-2 sentences)'
+            };
+
+            this.log('Generating comment with Gemini API, options:', options);
+
+            // Generate comment using Gemini API
+            const comment = await geminiAPI.generateComment(postData, 'linkedin', options);
+
+            if (!comment || comment.trim().length === 0) {
+                console.warn('[LinkedIn Handler] Empty comment generated');
+                return null;
+            }
+
+            // Additional validation for LinkedIn
+            if (comment.length > 1200) { // LinkedIn comment limit
+                console.warn('[LinkedIn Handler] Comment too long, truncating');
+                return comment.substring(0, 1197) + '...';
+            }
+
+            this.log('Generated comment:', comment);
+            return comment;
+
+        } catch (error) {
+            this.error('Failed to generate comment with Gemini API:', error);
+
+            // Check if it's an API key issue
+            if (error.message.includes('API key')) {
+                // Notify background script about API key issue
+                chrome.runtime.sendMessage({
+                    type: 'API_KEY_ERROR',
+                    platform: 'linkedin',
+                    message: 'Please set your Gemini API key in the extension popup.'
+                });
+            }
+
+            return null;
+        }
+    }
+
+    /**
+     * Log comment activity for analytics and debugging
+     * @param {Object} postData - The post data
+     * @param {string} comment - The generated comment
+     * @param {string} status - Status: 'success', 'failed', 'error'
+     * @param {string} errorMessage - Error message if applicable
+     */
+    async logCommentActivity(postData, comment, status, errorMessage = null) {
+        try {
+            const logEntry = {
+                timestamp: Date.now(),
+                platform: 'linkedin',
+                postId: postData.id,
+                authorName: postData.author?.name,
+                postContent: postData.content?.substring(0, 100) + '...',
+                generatedComment: comment,
+                status,
+                errorMessage,
+                relevanceScore: postData.relevanceAnalysis?.score || 0
+            };
+
+            // Get existing logs
+            const result = await chrome.storage.local.get(['commentLogs']);
+            const logs = result.commentLogs || [];
+
+            // Add new log and keep only last 200 entries
+            logs.unshift(logEntry);
+            const trimmedLogs = logs.slice(0, 200);
+
+            await chrome.storage.local.set({ commentLogs: trimmedLogs });
+
+        } catch (error) {
+            this.error('Failed to log comment activity:', error);
         }
     }
 

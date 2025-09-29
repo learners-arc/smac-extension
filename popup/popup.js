@@ -48,6 +48,9 @@ class PopupApp {
             // Load current settings and statistics
             await this.loadExtensionData();
 
+            // Load API configuration
+            await this.loadApiConfiguration();
+
             // Update UI with loaded data
             this.updateUI();
 
@@ -74,7 +77,16 @@ class PopupApp {
         this.elements.linkedinToggle = document.getElementById('linkedinToggle');
         this.elements.twitterToggle = document.getElementById('twitterToggle');
 
-        // API configuration
+        // API configuration elements
+        this.elements.apiKeyInput = document.getElementById('apiKeyInput');
+        this.elements.showApiKeyToggle = document.getElementById('showApiKeyToggle');
+        this.elements.testApiKey = document.getElementById('testApiKey');
+        this.elements.saveApiKey = document.getElementById('saveApiKey');
+        this.elements.apiKeyStatus = document.getElementById('apiKeyStatus');
+        this.elements.commentStyleSelect = document.getElementById('commentStyleSelect');
+        this.elements.commentLengthSelect = document.getElementById('commentLengthSelect');
+
+        // Legacy API elements (if they exist)
         this.elements.apiKey = document.getElementById('apiKey');
         this.elements.toggleApiKey = document.getElementById('toggleApiKey');
 
@@ -113,9 +125,39 @@ class PopupApp {
         this.elements.linkedinToggle.addEventListener('change', this.handlePlatformChange);
         this.elements.twitterToggle.addEventListener('change', this.handlePlatformChange);
 
-        // API key management
-        this.elements.apiKey.addEventListener('input', this.handleApiKeyChange);
-        this.elements.toggleApiKey.addEventListener('click', this.toggleApiKeyVisibility.bind(this));
+        // New API configuration handlers
+        if (this.elements.apiKeyInput) {
+            this.elements.apiKeyInput.addEventListener('input', this.handleApiKeyInput.bind(this));
+            this.elements.apiKeyInput.addEventListener('paste', this.handleApiKeyInput.bind(this));
+        }
+
+        if (this.elements.showApiKeyToggle) {
+            this.elements.showApiKeyToggle.addEventListener('click', this.toggleApiKeyVisibility.bind(this));
+        }
+
+        if (this.elements.testApiKey) {
+            this.elements.testApiKey.addEventListener('click', this.handleTestApiKey.bind(this));
+        }
+
+        if (this.elements.saveApiKey) {
+            this.elements.saveApiKey.addEventListener('click', this.handleSaveApiKey.bind(this));
+        }
+
+        if (this.elements.commentStyleSelect) {
+            this.elements.commentStyleSelect.addEventListener('change', this.handleCommentSettingsChange.bind(this));
+        }
+
+        if (this.elements.commentLengthSelect) {
+            this.elements.commentLengthSelect.addEventListener('change', this.handleCommentSettingsChange.bind(this));
+        }
+
+        // Legacy API key management (if elements exist)
+        if (this.elements.apiKey) {
+            this.elements.apiKey.addEventListener('input', this.handleApiKeyChange);
+        }
+        if (this.elements.toggleApiKey) {
+            this.elements.toggleApiKey.addEventListener('click', this.toggleApiKeyVisibility.bind(this));
+        }
 
         // Settings
         this.elements.intervalSlider.addEventListener('input', this.handleIntervalChange.bind(this));
@@ -653,6 +695,197 @@ class PopupApp {
                 toast.parentNode.removeChild(toast);
             }
         }, 4000);
+    }
+
+    /**
+     * API Configuration Handlers
+     */
+
+    /**
+     * Handle API key input changes
+     */
+    handleApiKeyInput() {
+        const apiKey = this.elements.apiKeyInput.value.trim();
+        const isValid = this.isValidApiKey(apiKey);
+
+        // Enable/disable buttons based on API key validity
+        this.elements.testApiKey.disabled = !isValid;
+        this.elements.saveApiKey.disabled = !isValid;
+
+        // Clear previous status
+        this.hideApiKeyStatus();
+    }
+
+    /**
+     * Handle API key testing
+     */
+    async handleTestApiKey() {
+        const apiKey = this.elements.apiKeyInput.value.trim();
+
+        if (!this.isValidApiKey(apiKey)) {
+            this.showToast('Invalid API key format', 'error');
+            return;
+        }
+
+        this.showApiKeyStatus('testing', 'Testing API connection...');
+        this.elements.testApiKey.disabled = true;
+
+        // Show spinner
+        const btnText = this.elements.testApiKey.querySelector('.btn-text');
+        const spinner = this.elements.testApiKey.querySelector('.btn-spinner');
+        btnText.style.display = 'none';
+        spinner.style.display = 'block';
+
+        try {
+            // Send test request to background script
+            const response = await this.sendMessage({
+                type: 'TEST_GEMINI_API',
+                apiKey: apiKey
+            });
+
+            if (response.success) {
+                this.showApiKeyStatus('success', 'API connection successful!');
+                this.showToast('API key is valid and working', 'success');
+            } else {
+                this.showApiKeyStatus('error', response.error || 'API test failed');
+                this.showToast('API test failed: ' + (response.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            console.error('API test error:', error);
+            this.showApiKeyStatus('error', 'Connection failed');
+            this.showToast('Failed to test API key', 'error');
+        } finally {
+            // Hide spinner and restore button
+            btnText.style.display = 'block';
+            spinner.style.display = 'none';
+            this.elements.testApiKey.disabled = false;
+        }
+    }
+
+    /**
+     * Handle API key saving
+     */
+    async handleSaveApiKey() {
+        const apiKey = this.elements.apiKeyInput.value.trim();
+
+        if (!this.isValidApiKey(apiKey)) {
+            this.showToast('Invalid API key format', 'error');
+            return;
+        }
+
+        try {
+            const response = await this.sendMessage({
+                type: 'SAVE_GEMINI_API_KEY',
+                apiKey: apiKey
+            });
+
+            if (response.success) {
+                this.showToast('API key saved successfully', 'success');
+                this.showApiKeyStatus('success', 'API key saved and ready');
+            } else {
+                this.showToast('Failed to save API key: ' + (response.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            console.error('Save API key error:', error);
+            this.showToast('Failed to save API key', 'error');
+        }
+    }
+
+    /**
+     * Handle comment style and length settings changes
+     */
+    async handleCommentSettingsChange() {
+        const style = this.elements.commentStyleSelect.value;
+        const length = this.elements.commentLengthSelect.value;
+
+        try {
+            const response = await this.sendMessage({
+                type: 'UPDATE_COMMENT_SETTINGS',
+                settings: {
+                    commentStyle: style,
+                    commentLength: length
+                }
+            });
+
+            if (response.success) {
+                console.log('Comment settings updated successfully');
+            } else {
+                this.showToast('Failed to save comment settings', 'error');
+            }
+        } catch (error) {
+            console.error('Save comment settings error:', error);
+            this.showToast('Failed to save comment settings', 'error');
+        }
+    }
+
+    /**
+     * Toggle API key visibility
+     */
+    toggleApiKeyVisibility() {
+        const input = this.elements.apiKeyInput;
+        if (input.type === 'password') {
+            input.type = 'text';
+        } else {
+            input.type = 'password';
+        }
+    }
+
+    /**
+     * Validate API key format
+     */
+    isValidApiKey(apiKey) {
+        return apiKey &&
+            typeof apiKey === 'string' &&
+            apiKey.length > 20 &&
+            apiKey.startsWith('AIza');
+    }
+
+    /**
+     * Show API key status
+     */
+    showApiKeyStatus(type, message) {
+        this.elements.apiKeyStatus.style.display = 'flex';
+        this.elements.apiKeyStatus.className = `api-status ${type}`;
+        this.elements.apiKeyStatus.querySelector('.status-text').textContent = message;
+    }
+
+    /**
+     * Hide API key status
+     */
+    hideApiKeyStatus() {
+        this.elements.apiKeyStatus.style.display = 'none';
+    }
+
+    /**
+     * Load API configuration from storage
+     */
+    async loadApiConfiguration() {
+        try {
+            const result = await chrome.storage.sync.get([
+                'geminiApiKey',
+                'commentStyle',
+                'commentLength'
+            ]);
+
+            if (result.geminiApiKey) {
+                // Show masked API key
+                this.elements.apiKeyInput.value = '•'.repeat(20) + result.geminiApiKey.slice(-8);
+                this.showApiKeyStatus('success', 'API key configured');
+                this.elements.testApiKey.disabled = false;
+                this.elements.saveApiKey.disabled = true; // Don't enable save for existing key display
+            }
+
+            if (result.commentStyle) {
+                this.elements.commentStyleSelect.value = result.commentStyle;
+            }
+
+            if (result.commentLength) {
+                this.elements.commentLengthSelect.value = result.commentLength;
+            }
+
+        } catch (error) {
+            console.error('Failed to load API configuration:', error);
+        }
     }
 }
 

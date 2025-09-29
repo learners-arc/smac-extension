@@ -12,6 +12,7 @@
 import { CONFIG } from '../config.js';
 import { storageManager } from '../utils/storage.js';
 import { commentScheduler } from '../utils/scheduler.js';
+import { geminiAPI } from '../services/gemini-api.js';
 
 // Global state management
 let extensionState = {

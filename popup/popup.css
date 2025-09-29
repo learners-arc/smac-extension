@@ -696,3 +696,204 @@ section + section {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary);
 }
+
+/* API Configuration Section Styles */
+.api-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    color: white;
+}
+
+.api-section .section-title {
+    color: white;
+    margin-bottom: var(--spacing-lg);
+}
+
+.api-key-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.api-key-input {
+    flex: 1;
+    padding: var(--spacing-sm) var(--spacing-md);
+    padding-right: 2.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--border-radius);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: var(--font-size-sm);
+    backdrop-filter: blur(10px);
+}
+
+.api-key-input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.api-key-input:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.show-key-btn {
+    position: absolute;
+    right: var(--spacing-sm);
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    border-radius: var(--border-radius-sm);
+    transition: all 0.2s ease;
+}
+
+.show-key-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.api-key-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
+.test-api-btn,
+.save-api-btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--border-radius);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.test-api-btn:enabled:hover,
+.save-api-btn:enabled:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
+}
+
+.test-api-btn:disabled,
+.save-api-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid transparent;
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.api-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius);
+    background: rgba(255, 255, 255, 0.1);
+    margin-top: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    backdrop-filter: blur(10px);
+}
+
+.api-status.success {
+    background: rgba(40, 167, 69, 0.2);
+    border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.api-status.error {
+    background: rgba(220, 53, 69, 0.2);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+.api-status.testing {
+    background: rgba(255, 193, 7, 0.2);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.status-icon::before {
+    font-size: var(--font-size-sm);
+}
+
+.api-status.success .status-icon::before {
+    content: '✓';
+    color: #28a745;
+}
+
+.api-status.error .status-icon::before {
+    content: '✗';
+    color: #dc3545;
+}
+
+.api-status.testing .status-icon::before {
+    content: '⟳';
+    color: #ffc107;
+    animation: spin 1s linear infinite;
+}
+
+.style-select,
+.length-select {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--border-radius);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: var(--font-size-sm);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+}
+
+.style-select:focus,
+.length-select:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.style-select option,
+.length-select option {
+    background: var(--primary-color);
+    color: white;
+}
+
+.api-section .setting-hint {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.api-section .setting-hint a {
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: underline;
+}
+
+.api-section .setting-hint a:hover {
+    color: white;
+}
