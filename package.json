@@ -1,0 +1,50 @@
+{
+  "name": "social-media-auto-comment",
+  "version": "1.0.0",
+  "description": "Chrome Extension that automatically comments on LinkedIn and Twitter posts using Gemini AI",
+  "main": "manifest.json",
+  "scripts": {
+    "build": "echo 'No build process needed for Chrome Extension'",
+    "test": "echo 'Tests will be implemented in Part 9'",
+    "lint": "echo 'ESLint configuration can be added later'",
+    "package": "echo 'Extension packaging will be handled in Part 10'"
+  },
+  "keywords": [
+    "chrome-extension",
+    "linkedin",
+    "twitter",
+    "automation",
+    "ai",
+    "gemini",
+    "social-media",
+    "comments",
+    "cs-student"
+  ],
+  "author": "Developer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "."
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "prettier": "^2.0.0"
+  },
+  "chrome-extension": {
+    "manifest-version": 3,
+    "platforms": [
+      "linkedin.com",
+      "x.com",
+      "twitter.com"
+    ],
+    "apis": [
+      "storage",
+      "scripting",
+      "activeTab",
+      "tabs"
+    ]
+  }
+}
