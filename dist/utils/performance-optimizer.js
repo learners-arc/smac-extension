@@ -302,7 +302,7 @@ class PerformanceOptimizer {
             if (typeof chrome !== 'undefined' && chrome.storage) {
                 // Get current storage usage
                 const storageData = await chrome.storage.local.get(null);
-                const cacheKeys = Object.keys(storageData).filter(key => 
+                const cacheKeys = Object.keys(storageData).filter(key =>
                     key.startsWith('cache_') || key.startsWith('temp_')
                 );
 
@@ -352,7 +352,7 @@ class PerformanceOptimizer {
      */
     registerObserver(observer, description = 'unknown') {
         this.observers.add(observer);
-        
+
         logger.debug('Observer registered', {
             component: 'PerformanceOptimizer',
             description,
@@ -369,7 +369,7 @@ class PerformanceOptimizer {
         if (this.observers.has(observer)) {
             observer.disconnect();
             this.observers.delete(observer);
-            
+
             logger.debug('Observer unregistered', {
                 component: 'PerformanceOptimizer',
                 totalObservers: this.observers.size
@@ -401,7 +401,7 @@ class PerformanceOptimizer {
     unregisterEventListener(element, event, handler, options = false) {
         if (this.eventListeners.has(element)) {
             const listeners = this.eventListeners.get(element);
-            const index = listeners.findIndex(l => 
+            const index = listeners.findIndex(l =>
                 l.event === event && l.handler === handler && l.options === options
             );
 
@@ -453,7 +453,7 @@ class PerformanceOptimizer {
         if (this.timers.has(timer)) {
             timer.completed = true;
             clearTimeout(timer.id);
-            
+
             logger.debug('Timer completed', {
                 component: 'PerformanceOptimizer',
                 description: timer.description,

@@ -1101,32 +1101,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 /**
  * Handle system idle state changes
  */
-chrome.idle.onStateChanged.addListener(async (newState) => {
-    try {
-        console.log('System idle state changed to:', newState);
+if (chrome.idle && chrome.idle.onStateChanged) {
+    chrome.idle.onStateChanged.addListener(async (newState) => {
+        try {
+            console.log('System idle state changed to:', newState);
 
-        if (!extensionState.currentSession) return;
+            if (!extensionState.currentSession) return;
 
-        if (newState === 'idle' || newState === 'locked') {
-            // System is idle - reduce activity
-            await storageManager.addLog('INFO', `System state: ${newState} - reducing activity`);
-        } else if (newState === 'active') {
-            // System is active - resume normal activity
-            await storageManager.addLog('INFO', 'System active - resuming normal activity');
+            if (newState === 'idle' || newState === 'locked') {
+                // System is idle - reduce activity
+                await storageManager.addLog('INFO', `System state: ${newState} - reducing activity`);
+            } else if (newState === 'active') {
+                // System is active - resume normal activity
+                await storageManager.addLog('INFO', 'System active - resuming normal activity');
 
-            // Check if scheduler needs to be restarted
-            if (!commentScheduler.getStatus().isRunning) {
-                const settings = await storageManager.getSettings();
-                if (settings.isEnabled) {
-                    await commentScheduler.start({ commentInterval: settings.commentInterval });
+                // Check if scheduler needs to be restarted
+                if (!commentScheduler.getStatus().isRunning) {
+                    const settings = await storageManager.getSettings();
+                    if (settings.isEnabled) {
+                        await commentScheduler.start({ commentInterval: settings.commentInterval });
+                    }
                 }
             }
-        }
 
-    } catch (error) {
-        console.error('Error handling idle state change:', error);
-    }
-});
+        } catch (error) {
+            console.error('Error handling idle state change:', error);
+        }
+    });
+} else {
+    console.warn('Chrome idle API not available');
+}
 
 /**
  * Handle alarm events (for backup scheduling)

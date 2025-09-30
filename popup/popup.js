@@ -78,52 +78,71 @@ class PopupApp {
      * Cache DOM element references
      */
     cacheElements() {
-        // Status elements
-        this.elements.statusDot = document.getElementById('statusDot');
-        this.elements.statusText = document.getElementById('statusText');
+        try {
+            // Status elements
+            this.elements.statusDot = document.getElementById('statusDot');
+            this.elements.statusText = document.getElementById('statusText');
 
-        // Platform elements
-        this.elements.linkedinToggle = document.getElementById('linkedinToggle');
-        this.elements.twitterToggle = document.getElementById('twitterToggle');
+            // Platform elements
+            this.elements.linkedinToggle = document.getElementById('linkedinToggle');
+            this.elements.twitterToggle = document.getElementById('twitterToggle');
 
-        // API configuration elements
-        this.elements.apiKeyInput = document.getElementById('apiKeyInput');
-        this.elements.showApiKeyToggle = document.getElementById('showApiKeyToggle');
-        this.elements.testApiKey = document.getElementById('testApiKey');
-        this.elements.saveApiKey = document.getElementById('saveApiKey');
-        this.elements.apiKeyStatus = document.getElementById('apiKeyStatus');
-        this.elements.commentStyleSelect = document.getElementById('commentStyleSelect');
-        this.elements.commentLengthSelect = document.getElementById('commentLengthSelect');
+            // API configuration elements
+            this.elements.apiKeyInput = document.getElementById('apiKeyInput');
+            this.elements.showApiKeyToggle = document.getElementById('showApiKeyToggle');
+            this.elements.testApiKey = document.getElementById('testApiKey');
+            this.elements.saveApiKey = document.getElementById('saveApiKey');
+            this.elements.apiKeyStatus = document.getElementById('apiKeyStatus');
+            this.elements.commentStyleSelect = document.getElementById('commentStyleSelect');
+            this.elements.commentLengthSelect = document.getElementById('commentLengthSelect');
 
-        // Legacy API elements (if they exist)
-        this.elements.apiKey = document.getElementById('apiKey');
-        this.elements.toggleApiKey = document.getElementById('toggleApiKey');
+            // Legacy API elements (if they exist)
+            this.elements.apiKey = document.getElementById('apiKey');
+            this.elements.toggleApiKey = document.getElementById('toggleApiKey');
 
-        // Settings elements
-        this.elements.intervalSlider = document.getElementById('intervalSlider');
-        this.elements.intervalValue = document.getElementById('intervalValue');
-        this.elements.csFilterToggle = document.getElementById('csFilterToggle');
-        this.elements.smartTypingToggle = document.getElementById('smartTypingToggle');
+            // Settings elements
+            this.elements.intervalSlider = document.getElementById('intervalSlider');
+            this.elements.intervalValue = document.getElementById('intervalValue');
+            this.elements.csFilterToggle = document.getElementById('csFilterToggle');
+            this.elements.smartTypingToggle = document.getElementById('smartTypingToggle');
 
-        // Statistics elements
-        this.elements.totalComments = document.getElementById('totalComments');
-        this.elements.sessionsToday = document.getElementById('sessionsToday');
-        this.elements.postsProcessed = document.getElementById('postsProcessed');
-        this.elements.successRate = document.getElementById('successRate');
+            // Statistics elements
+            this.elements.totalComments = document.getElementById('totalComments');
+            this.elements.sessionsToday = document.getElementById('sessionsToday');
+            this.elements.postsProcessed = document.getElementById('postsProcessed');
+            this.elements.successRate = document.getElementById('successRate');
 
-        // Control buttons
-        this.elements.startBtn = document.getElementById('startBtn');
-        this.elements.stopBtn = document.getElementById('stopBtn');
-        this.elements.viewLogsBtn = document.getElementById('viewLogsBtn');
-        this.elements.clearDataBtn = document.getElementById('clearDataBtn');
+            // Control buttons
+            this.elements.startBtn = document.getElementById('startBtn');
+            this.elements.stopBtn = document.getElementById('stopBtn');
+            this.elements.viewLogsBtn = document.getElementById('viewLogsBtn');
+            this.elements.clearDataBtn = document.getElementById('clearDataBtn');
 
-        // Footer links
-        this.elements.helpLink = document.getElementById('helpLink');
-        this.elements.settingsLink = document.getElementById('settingsLink');
+            // Footer links
+            this.elements.helpLink = document.getElementById('helpLink');
+            this.elements.settingsLink = document.getElementById('settingsLink');
 
-        // Overlay and toast
-        this.elements.loadingOverlay = document.getElementById('loadingOverlay');
-        this.elements.toastContainer = document.getElementById('toastContainer');
+            // Overlay and toast
+            this.elements.loadingOverlay = document.getElementById('loadingOverlay');
+            this.elements.toastContainer = document.getElementById('toastContainer');
+
+            // Validate critical elements
+            const criticalElements = [
+                'statusDot', 'startBtn', 'stopBtn', 'loadingOverlay', 'toastContainer'
+            ];
+
+            for (const elementName of criticalElements) {
+                if (!this.elements[elementName]) {
+                    throw new Error(`Critical element missing: ${elementName}`);
+                }
+            }
+
+            console.log('All DOM elements cached successfully');
+
+        } catch (error) {
+            console.error('Error caching DOM elements:', error);
+            throw error; // Re-throw to be handled by caller
+        }
     }
 
     /**
@@ -269,12 +288,21 @@ class PopupApp {
      * Update status indicator
      */
     updateStatusIndicator() {
-        const isActive = this.currentSettings.isEnabled;
+        try {
+            const isActive = this.currentSettings.isEnabled;
 
-        this.elements.statusDot.classList.toggle('active', isActive);
-        this.elements.statusText.textContent = isActive ? 'Active' : 'Inactive';
+            if (this.elements.statusDot && this.elements.statusDot.classList) {
+                this.elements.statusDot.classList.toggle('active', isActive);
+            }
 
-        this.isExtensionActive = isActive;
+            if (this.elements.statusText) {
+                this.elements.statusText.textContent = isActive ? 'Active' : 'Inactive';
+            }
+
+            this.isExtensionActive = isActive;
+        } catch (error) {
+            console.error('Error updating status indicator:', error);
+        }
     }
 
     /**
@@ -681,15 +709,30 @@ class PopupApp {
      * Show loading overlay
      */
     showLoading(message = 'Loading...') {
-        this.elements.loadingOverlay.classList.remove('hidden');
-        this.elements.loadingOverlay.querySelector('.loading-text').textContent = message;
+        try {
+            if (this.elements.loadingOverlay && this.elements.loadingOverlay.classList) {
+                this.elements.loadingOverlay.classList.remove('hidden');
+                const loadingText = this.elements.loadingOverlay.querySelector('.loading-text');
+                if (loadingText) {
+                    loadingText.textContent = message;
+                }
+            }
+        } catch (error) {
+            console.error('Error showing loading overlay:', error);
+        }
     }
 
     /**
      * Hide loading overlay
      */
     hideLoading() {
-        this.elements.loadingOverlay.classList.add('hidden');
+        try {
+            if (this.elements.loadingOverlay && this.elements.loadingOverlay.classList) {
+                this.elements.loadingOverlay.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Error hiding loading overlay:', error);
+        }
     }
 
     /**
@@ -911,14 +954,45 @@ class PopupApp {
  */
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        // Wait a bit for DOM to be fully ready
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Verify DOM is ready
+        if (document.readyState !== 'complete') {
+            await new Promise(resolve => {
+                if (document.readyState === 'complete') {
+                    resolve();
+                } else {
+                    window.addEventListener('load', resolve);
+                }
+            });
+        }
+
+        console.log('DOM ready, initializing popup application...');
+
         const app = new PopupApp();
         await app.init();
 
         // Make app globally available for debugging
         window.popupApp = app;
 
+        console.log('Popup application initialized successfully');
+
     } catch (error) {
         console.error('Failed to initialize popup application:', error);
+
+        // Show error to user if possible
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = 'position: fixed; top: 10px; left: 10px; background: #ff4444; color: white; padding: 10px; border-radius: 4px; z-index: 9999;';
+        errorDiv.textContent = 'Extension failed to initialize. Please refresh.';
+        document.body.appendChild(errorDiv);
+
+        // Auto-remove error after 10 seconds
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.parentNode.removeChild(errorDiv);
+            }
+        }, 10000);
     }
 });
 

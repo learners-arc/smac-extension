@@ -1101,13 +1101,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 /**
  * Handle system idle state changes
  */
-chrome.idle.onStateChanged.addListener(async (newState) => {
-    try {
-        console.log('System idle state changed to:', newState);
+if (chrome.idle && chrome.idle.onStateChanged) {
+    chrome.idle.onStateChanged.addListener(async (newState) => {
+        try {
+            console.log('System idle state changed to:', newState);
 
-        if (!extensionState.currentSession) return;
+            if (!extensionState.currentSession) return;
 
-        if (newState === 'idle' || newState === 'locked') {
+            if (newState === 'idle' || newState === 'locked') {
             // System is idle - reduce activity
             await storageManager.addLog('INFO', `System state: ${newState} - reducing activity`);
         } else if (newState === 'active') {
@@ -1126,7 +1127,10 @@ chrome.idle.onStateChanged.addListener(async (newState) => {
     } catch (error) {
         console.error('Error handling idle state change:', error);
     }
-});
+    });
+} else {
+    console.warn('Chrome idle API not available');
+}
 
 /**
  * Handle alarm events (for backup scheduling)
@@ -1482,7 +1486,7 @@ async function handleSetDebugMode(enabled) {
 async function handleGetPerformanceStats() {
     try {
         const stats = performanceOptimizer.getPerformanceStats();
-        
+
         logger.debug('Performance stats retrieved', {
             component: 'ServiceWorker',
             stats
@@ -1508,7 +1512,7 @@ async function handleGetPerformanceStats() {
 async function handleForceCleanup() {
     try {
         await performanceOptimizer.forceCleanup();
-        
+
         logger.info('Force cleanup executed', {
             component: 'ServiceWorker'
         });
@@ -1533,7 +1537,7 @@ async function handleForceCleanup() {
 async function handleGetMemoryUsage() {
     try {
         let memoryInfo = null;
-        
+
         if (typeof performance.memory !== 'undefined') {
             memoryInfo = {
                 used: performance.memory.usedJSHeapSize,
