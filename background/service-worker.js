@@ -13,6 +13,8 @@ import { CONFIG } from '../config.js';
 import { storageManager } from '../utils/storage.js';
 import { commentScheduler } from '../utils/scheduler.js';
 import { geminiAPI } from '../services/gemini-api.js';
+import { logger } from '../utils/logger.js';
+import { errorHandler } from '../utils/error-handler.js';
 
 // Global state management
 let extensionState = {
@@ -29,9 +31,13 @@ let extensionState = {
  * Extension installation and startup
  */
 chrome.runtime.onInstalled.addListener(async (details) => {
-    console.log('Social Media Auto-Comment Extension installed/updated:', details.reason);
-
     try {
+        logger.info('Social Media Auto-Comment Extension installed/updated', {
+            component: 'ServiceWorker',
+            reason: details.reason,
+            previousVersion: details.previousVersion
+        });
+
         // Initialize storage manager
         await storageManager.initialize();
 
@@ -40,19 +46,24 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
         // Set up initial state based on installation reason
         if (details.reason === 'install') {
-            console.log('First time installation - setting up defaults');
+            logger.info('First time installation - setting up defaults', { component: 'ServiceWorker' });
             await handleFirstInstall();
         } else if (details.reason === 'update') {
-            console.log('Extension updated - checking for data migration');
+            logger.info('Extension updated - checking for data migration', {
+                component: 'ServiceWorker',
+                previousVersion: details.previousVersion
+            });
             await handleUpdate(details.previousVersion);
         }
 
         extensionState.isInitialized = true;
-        console.log('Extension initialization completed');
+        logger.info('Service Worker initialization completed', { component: 'ServiceWorker' });
 
     } catch (error) {
-        console.error('Error during extension initialization:', error);
-        await storageManager.addLog('ERROR', 'Extension initialization failed', null, { error: error.message });
+        await errorHandler.handleError(error, {
+            component: 'ServiceWorker',
+            operation: 'onInstalled'
+        });
     }
 });
 
@@ -91,7 +102,12 @@ async function handleUpdate(previousVersion) {
  * Handle messages from content scripts and popup
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log('Service Worker received message:', message);
+    logger.debug('Service Worker received message', {
+        component: 'ServiceWorker',
+        operation: 'onMessage',
+        messageType: message.type,
+        sender: sender.tab ? `tab:${sender.tab.id}` : 'popup'
+    });
 
     // Handle async responses
     (async () => {
@@ -184,16 +200,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     response = await handleResetDuplicateChecker(message.includeHistory);
                     break;
 
+                // Part 9: Testing and debugging handlers
+                case 'RUN_TESTS':
+                    response = await handleRunTests(message.testSuite);
+                    break;
+
+                case 'GET_ERROR_STATISTICS':
+                    response = await handleGetErrorStatistics();
+                    break;
+
+                case 'CLEAR_ERROR_DATA':
+                    response = await handleClearErrorData();
+                    break;
+
+                case 'EXPORT_LOGS':
+                    response = await handleExportLogs(message.format);
+                    break;
+
+                case 'SET_DEBUG_MODE':
+                    response = await handleSetDebugMode(message.enabled);
+                    break;
+
                 default:
-                    console.warn('Unknown message type:', message.type);
+                    logger.warn('Unknown message type received', {
+                        component: 'ServiceWorker',
+                        messageType: message.type
+                    });
                     response = { success: false, error: 'Unknown message type' };
             }
 
             sendResponse(response);
 
         } catch (error) {
-            console.error('Error handling message:', error);
-            sendResponse({ success: false, error: error.message });
+            await errorHandler.handleError(error, {
+                component: 'ServiceWorker',
+                operation: 'messageHandler',
+                messageType: message.type
+            });
+
+            sendResponse({
+                success: false,
+                error: error.message,
+                errorId: error.id
+            });
         }
     })();
 
@@ -1248,19 +1297,162 @@ setInterval(async () => {
 
         // Check scheduler health
         if (extensionState.currentSession && !commentScheduler.getStatus().isRunning) {
-            console.warn('Scheduler not running during active session - investigating');
+            logger.warn('Scheduler not running during active session - investigating', {
+                component: 'ServiceWorker'
+            });
             await performHealthCheck();
         }
 
         // Log keep-alive periodically (every 5 minutes)
         if (timestamp % 300000 < 30000) { // 5 minutes = 300000ms
-            console.log('Service Worker keep-alive ping');
+            logger.debug('Service Worker keep-alive ping', { component: 'ServiceWorker' });
         }
 
     } catch (error) {
-        console.error('Error in keep-alive mechanism:', error);
+        await errorHandler.handleError(error, {
+            component: 'ServiceWorker',
+            operation: 'keepAlive'
+        });
     }
 }, KEEP_ALIVE_INTERVAL);
+
+/**
+ * Part 9: Testing, Logging and Error Handling Handlers
+ */
+
+/**
+ * Run test suite
+ */
+async function handleRunTests(testSuite = 'all') {
+    try {
+        logger.info('Running test suite', {
+            component: 'ServiceWorker',
+            testSuite
+        });
+
+        // Import test runner dynamically
+        const { testRunner } = await import('../test/test-scenarios.js');
+
+        let results;
+        if (testSuite === 'all') {
+            results = await testRunner.runAllTests();
+        } else {
+            results = await testRunner.runTestSuite(testSuite, testRunner.testSuites[testSuite] || []);
+        }
+
+        logger.info('Test suite completed', {
+            component: 'ServiceWorker',
+            testSuite,
+            results: results.summary
+        });
+
+        return { success: true, data: results };
+
+    } catch (error) {
+        await errorHandler.handleError(error, {
+            component: 'ServiceWorker',
+            operation: 'runTests'
+        });
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Get error statistics
+ */
+async function handleGetErrorStatistics() {
+    try {
+        const errorStats = errorHandler.getErrorStatistics();
+        const errorPatterns = errorHandler.getErrorPatterns();
+
+        return {
+            success: true,
+            data: {
+                statistics: errorStats,
+                patterns: errorPatterns
+            }
+        };
+
+    } catch (error) {
+        await errorHandler.handleError(error, {
+            component: 'ServiceWorker',
+            operation: 'getErrorStatistics'
+        });
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Clear error data
+ */
+async function handleClearErrorData() {
+    try {
+        errorHandler.clearErrorData();
+        logger.info('Error data cleared', { component: 'ServiceWorker' });
+
+        return { success: true, message: 'Error data cleared successfully' };
+
+    } catch (error) {
+        await errorHandler.handleError(error, {
+            component: 'ServiceWorker',
+            operation: 'clearErrorData'
+        });
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Export logs
+ */
+async function handleExportLogs(format = 'json') {
+    try {
+        logger.info('Exporting logs', {
+            component: 'ServiceWorker',
+            format
+        });
+
+        const exportData = await logger.exportLogs(format);
+
+        return {
+            success: true,
+            data: exportData,
+            format
+        };
+
+    } catch (error) {
+        await errorHandler.handleError(error, {
+            component: 'ServiceWorker',
+            operation: 'exportLogs'
+        });
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Set debug mode
+ */
+async function handleSetDebugMode(enabled) {
+    try {
+        await logger.setDebugMode(enabled);
+
+        logger.info('Debug mode updated', {
+            component: 'ServiceWorker',
+            debugMode: enabled
+        });
+
+        return {
+            success: true,
+            message: `Debug mode ${enabled ? 'enabled' : 'disabled'}`
+        };
+
+    } catch (error) {
+        await errorHandler.handleError(error, {
+            component: 'ServiceWorker',
+            operation: 'setDebugMode'
+        });
+        return { success: false, error: error.message };
+    }
+}
 
 // Initialize service worker
 initializeServiceWorker();

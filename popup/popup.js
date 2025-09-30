@@ -9,6 +9,9 @@
 // Import configuration (will be available as global from manifest)
 // const { CONFIG } = await import('../config.js');
 
+// Import debug panel
+import { DebugPanel } from './debug-panel.js';
+
 /**
  * Popup Application Class
  * Manages all popup functionality and state
@@ -22,6 +25,9 @@ class PopupApp {
 
         // DOM element references
         this.elements = {};
+
+        // Debug panel instance
+        this.debugPanel = null;
 
         // Bind methods
         this.handleStartClick = this.handleStartClick.bind(this);
@@ -53,6 +59,9 @@ class PopupApp {
 
             // Update UI with loaded data
             this.updateUI();
+
+            // Initialize debug panel
+            this.debugPanel = new DebugPanel();
 
             this.isInitialized = true;
             console.log('Popup application initialized successfully');
@@ -169,6 +178,14 @@ class PopupApp {
         this.elements.stopBtn.addEventListener('click', this.handleStopClick);
         this.elements.viewLogsBtn.addEventListener('click', this.handleViewLogs.bind(this));
         this.elements.clearDataBtn.addEventListener('click', this.handleClearData.bind(this));
+
+        // Debug panel toggle
+        const debugButton = document.getElementById('debugPanelToggle');
+        if (debugButton) {
+            debugButton.addEventListener('click', () => {
+                this.debugPanel.toggle();
+            });
+        }
 
         // Footer links
         this.elements.helpLink.addEventListener('click', this.handleHelpClick.bind(this));
