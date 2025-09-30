@@ -384,14 +384,22 @@ class DebugPanel {
                 }
             });
 
-            if (response.success) {
-                this.displayLogs(response.data);
+            if (response && response.success) {
+                this.displayLogs(response.data || []);
             } else {
+                console.warn('Failed to load logs:', response);
                 this.showToast('Failed to load logs', 'error');
+                // Show empty state
+                this.displayLogs([]);
             }
         } catch (error) {
             console.error('Failed to refresh logs:', error);
             this.showToast('Error loading logs', 'error');
+            // Show empty state with error
+            const container = document.getElementById('log-entries');
+            if (container) {
+                container.innerHTML = '<div class="log-entry error">Error loading logs. Check console for details.</div>';
+            }
         }
     }
 
@@ -399,40 +407,60 @@ class DebugPanel {
      * Display logs in the UI
      */
     displayLogs(logs) {
-        const container = document.getElementById('log-entries');
-        container.innerHTML = '';
+        try {
+            const container = document.getElementById('log-entries');
+            if (!container) {
+                console.error('Log entries container not found');
+                return;
+            }
 
-        if (!logs || logs.length === 0) {
-            container.innerHTML = '<div class="log-entry empty">No logs found</div>';
-            return;
+            container.innerHTML = '';
+
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div class="log-entry empty">No logs found</div>';
+                return;
+            }
+
+            logs.forEach((log, index) => {
+                try {
+                    const logEntry = document.createElement('div');
+                    logEntry.className = `log-entry log-${(log.level || 'info').toLowerCase()}`;
+
+                    const timestamp = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : 'Unknown';
+                    
+                    // Handle both old and new log formats
+                    const platform = (log.context && log.context.platform) || log.platform || 'core';
+                    const component = (log.context && log.context.component) || 'unknown';
+                    const message = log.message || 'No message';
+
+                    logEntry.innerHTML = `
+                        <div class="log-header">
+                            <span class="log-time">${timestamp}</span>
+                            <span class="log-level log-level-${(log.level || 'info').toLowerCase()}">${log.level || 'INFO'}</span>
+                            <span class="log-platform">${platform}</span>
+                            <span class="log-component">${component}</span>
+                        </div>
+                        <div class="log-message">${message}</div>
+                        ${(log.context && Object.keys(log.context).length > 3) || (log.details && Object.keys(log.details).length > 0) ? `
+                            <div class="log-context">${JSON.stringify(log.context || log.details || {}, null, 2)}</div>
+                        ` : ''}
+                    `;
+
+                    container.appendChild(logEntry);
+                } catch (entryError) {
+                    console.error(`Error displaying log entry ${index}:`, entryError, log);
+                }
+            });
+
+            // Scroll to bottom for latest logs
+            container.scrollTop = container.scrollHeight;
+        } catch (error) {
+            console.error('Error in displayLogs:', error);
+            const container = document.getElementById('log-entries');
+            if (container) {
+                container.innerHTML = '<div class="log-entry error">Error displaying logs</div>';
+            }
         }
-
-        logs.forEach(log => {
-            const logEntry = document.createElement('div');
-            logEntry.className = `log-entry log-${log.level.toLowerCase()}`;
-
-            const timestamp = new Date(log.timestamp).toLocaleTimeString();
-            const platform = log.context.platform || 'core';
-            const component = log.context.component || 'unknown';
-
-            logEntry.innerHTML = `
-                <div class="log-header">
-                    <span class="log-time">${timestamp}</span>
-                    <span class="log-level log-level-${log.level.toLowerCase()}">${log.level}</span>
-                    <span class="log-platform">${platform}</span>
-                    <span class="log-component">${component}</span>
-                </div>
-                <div class="log-message">${log.message}</div>
-                ${Object.keys(log.context).length > 3 ? `
-                    <div class="log-context">${JSON.stringify(log.context, null, 2)}</div>
-                ` : ''}
-            `;
-
-            container.appendChild(logEntry);
-        });
-
-        // Scroll to bottom for latest logs
-        container.scrollTop = container.scrollHeight;
     }
 
     /**
