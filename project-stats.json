@@ -1,0 +1,624 @@
+{
+  "overview": {
+    "name": "social-media-auto-comment",
+    "version": "1.0.0",
+    "description": "Chrome Extension that automatically comments on LinkedIn and Twitter posts using Gemini AI, targeting Computer Science student-relevant content with intelligent filtering and human-like behavior simulation.",
+    "author": {
+      "name": "Social Media Auto-Comment Team",
+      "email": "support@example.com",
+      "url": "https://github.com/username/social-media-auto-comment"
+    },
+    "license": "MIT",
+    "keywords": [
+      "chrome-extension",
+      "linkedin-automation",
+      "twitter-automation",
+      "x-automation",
+      "social-media-automation",
+      "ai-comments",
+      "gemini-ai",
+      "computer-science",
+      "student-tools",
+      "content-filtering",
+      "human-like-behavior",
+      "duplicate-prevention",
+      "performance-optimized",
+      "manifest-v3",
+      "es6-modules"
+    ],
+    "analysisDate": "2025-09-30T09:13:58.886Z",
+    "nodeVersion": "v22.19.0",
+    "versionControl": "Git",
+    "totalProjectSize": 615551,
+    "totalProjectSizeFormatted": "601.12 KB"
+  },
+  "codeMetrics": {
+    "totalFiles": 29,
+    "totalLines": 16001,
+    "totalCodeLines": 11057,
+    "totalCommentLines": 2588,
+    "totalBlankLines": 2356,
+    "averageLinesPerFile": 552,
+    "commentRatio": "16.2",
+    "fileMetrics": {
+      "background/service-worker.js": {
+        "totalLines": 1581,
+        "codeLines": 1039,
+        "commentLines": 268,
+        "blankLines": 274,
+        "size": 47437
+      },
+      "content-scripts/linkedin.js": {
+        "totalLines": 816,
+        "codeLines": 545,
+        "commentLines": 134,
+        "blankLines": 137,
+        "size": 28271
+      },
+      "content-scripts/twitter.js": {
+        "totalLines": 920,
+        "codeLines": 610,
+        "commentLines": 160,
+        "blankLines": 150,
+        "size": 33139
+      },
+      "popup/debug-panel.js": {
+        "totalLines": 760,
+        "codeLines": 541,
+        "commentLines": 121,
+        "blankLines": 98,
+        "size": 26163
+      },
+      "popup/popup.css": {
+        "totalLines": 1469,
+        "codeLines": 1214,
+        "commentLines": 36,
+        "blankLines": 219,
+        "size": 29313
+      },
+      "popup/popup.html": {
+        "totalLines": 266,
+        "codeLines": 244,
+        "commentLines": 0,
+        "blankLines": 22,
+        "size": 13098
+      },
+      "popup/popup.js": {
+        "totalLines": 935,
+        "codeLines": 586,
+        "commentLines": 195,
+        "blankLines": 154,
+        "size": 30600
+      },
+      "utils/api-handler.js": {
+        "totalLines": 434,
+        "codeLines": 278,
+        "commentLines": 90,
+        "blankLines": 66,
+        "size": 13913
+      },
+      "utils/comment-poster.js": {
+        "totalLines": 611,
+        "codeLines": 384,
+        "commentLines": 140,
+        "blankLines": 87,
+        "size": 21014
+      },
+      "utils/content-filter.js": {
+        "totalLines": 324,
+        "codeLines": 207,
+        "commentLines": 72,
+        "blankLines": 45,
+        "size": 12331
+      },
+      "utils/data-extractor.js": {
+        "totalLines": 547,
+        "codeLines": 343,
+        "commentLines": 124,
+        "blankLines": 80,
+        "size": 18972
+      },
+      "utils/dom-helpers.js": {
+        "totalLines": 609,
+        "codeLines": 374,
+        "commentLines": 150,
+        "blankLines": 85,
+        "size": 19907
+      },
+      "utils/duplicate-checker.js": {
+        "totalLines": 562,
+        "codeLines": 335,
+        "commentLines": 139,
+        "blankLines": 88,
+        "size": 19597
+      },
+      "utils/error-handler.js": {
+        "totalLines": 793,
+        "codeLines": 547,
+        "commentLines": 141,
+        "blankLines": 105,
+        "size": 26786
+      },
+      "utils/logger.js": {
+        "totalLines": 648,
+        "codeLines": 429,
+        "commentLines": 130,
+        "blankLines": 89,
+        "size": 19207
+      },
+      "utils/performance-optimizer.js": {
+        "totalLines": 564,
+        "codeLines": 380,
+        "commentLines": 99,
+        "blankLines": 85,
+        "size": 16780
+      },
+      "utils/scheduler.js": {
+        "totalLines": 487,
+        "codeLines": 294,
+        "commentLines": 101,
+        "blankLines": 92,
+        "size": 14172
+      },
+      "utils/storage.js": {
+        "totalLines": 499,
+        "codeLines": 344,
+        "commentLines": 91,
+        "blankLines": 64,
+        "size": 15671
+      },
+      "utils/twitter-selectors.js": {
+        "totalLines": 459,
+        "codeLines": 310,
+        "commentLines": 106,
+        "blankLines": 43,
+        "size": 16064
+      },
+      "services/gemini-api.js": {
+        "totalLines": 443,
+        "codeLines": 302,
+        "commentLines": 82,
+        "blankLines": 59,
+        "size": 15458
+      },
+      "prompts/comment-templates.js": {
+        "totalLines": 454,
+        "codeLines": 325,
+        "commentLines": 54,
+        "blankLines": 75,
+        "size": 16114
+      },
+      "test/test-scenarios.js": {
+        "totalLines": 901,
+        "codeLines": 649,
+        "commentLines": 127,
+        "blankLines": 125,
+        "size": 29413
+      },
+      "assets/icons/icon-generator.js": {
+        "totalLines": 32,
+        "codeLines": 12,
+        "commentLines": 14,
+        "blankLines": 6,
+        "size": 2250
+      },
+      "manifest.json": {
+        "totalLines": 104,
+        "codeLines": 93,
+        "commentLines": 0,
+        "blankLines": 11,
+        "size": 2461
+      },
+      "config.js": {
+        "totalLines": 81,
+        "codeLines": 59,
+        "commentLines": 14,
+        "blankLines": 8,
+        "size": 2457
+      },
+      "package.json": {
+        "totalLines": 131,
+        "codeLines": 131,
+        "commentLines": 0,
+        "blankLines": 0,
+        "size": 4287
+      },
+      "README.md": {
+        "totalLines": 104,
+        "codeLines": 82,
+        "commentLines": 0,
+        "blankLines": 22,
+        "size": 3927
+      },
+      "CHANGELOG.md": {
+        "totalLines": 140,
+        "codeLines": 124,
+        "commentLines": 0,
+        "blankLines": 16,
+        "size": 8425
+      },
+      "todo.md": {
+        "totalLines": 327,
+        "codeLines": 276,
+        "commentLines": 0,
+        "blankLines": 51,
+        "size": 18679
+      }
+    }
+  },
+  "fileTypes": {
+    "totalFiles": 41,
+    "typeBreakdown": {
+      ".js": {
+        "count": 24,
+        "totalSize": 481811,
+        "files": [
+          "assets/icons/icon-generator.js",
+          "background/service-worker.js",
+          "config.js",
+          "content-scripts/linkedin.js",
+          "content-scripts/twitter.js",
+          "popup/debug-panel.js",
+          "popup/popup.js",
+          "prompts/comment-templates.js",
+          "scripts/build.js",
+          "scripts/project-stats.js",
+          "services/gemini-api.js",
+          "test/test-scenarios.js",
+          "utils/api-handler.js",
+          "utils/comment-poster.js",
+          "utils/content-filter.js",
+          "utils/data-extractor.js",
+          "utils/dom-helpers.js",
+          "utils/duplicate-checker.js",
+          "utils/error-handler.js",
+          "utils/logger.js",
+          "utils/performance-optimizer.js",
+          "utils/scheduler.js",
+          "utils/storage.js",
+          "utils/twitter-selectors.js"
+        ],
+        "averageSize": 20075,
+        "totalSizeFormatted": "470.52 KB"
+      },
+      ".md": {
+        "count": 6,
+        "totalSize": 82143,
+        "files": [
+          "CHANGELOG.md",
+          "README.md",
+          "assets/icons/README.md",
+          "docs/developer-guide.md",
+          "docs/user-guide.md",
+          "todo.md"
+        ],
+        "averageSize": 13691,
+        "totalSizeFormatted": "80.22 KB"
+      },
+      ".png": {
+        "count": 4,
+        "totalSize": 400,
+        "files": [
+          "assets/icons/icon128.png",
+          "assets/icons/icon16.png",
+          "assets/icons/icon32.png",
+          "assets/icons/icon48.png"
+        ],
+        "averageSize": 100,
+        "totalSizeFormatted": "400 B"
+      },
+      "": {
+        "count": 2,
+        "totalSize": 1600,
+        "files": [
+          ".gitignore",
+          "LICENSE"
+        ],
+        "averageSize": 800,
+        "totalSizeFormatted": "1.56 KB"
+      },
+      ".json": {
+        "count": 2,
+        "totalSize": 6748,
+        "files": [
+          "manifest.json",
+          "package.json"
+        ],
+        "averageSize": 3374,
+        "totalSizeFormatted": "6.59 KB"
+      },
+      ".svg": {
+        "count": 1,
+        "totalSize": 438,
+        "files": [
+          "assets/icons/icon.svg"
+        ],
+        "averageSize": 438,
+        "totalSizeFormatted": "438 B"
+      },
+      ".css": {
+        "count": 1,
+        "totalSize": 29313,
+        "files": [
+          "popup/popup.css"
+        ],
+        "averageSize": 29313,
+        "totalSizeFormatted": "28.63 KB"
+      },
+      ".html": {
+        "count": 1,
+        "totalSize": 13098,
+        "files": [
+          "popup/popup.html"
+        ],
+        "averageSize": 13098,
+        "totalSizeFormatted": "12.79 KB"
+      }
+    }
+  },
+  "documentation": {
+    "totalFiles": 6,
+    "totalLines": 2570,
+    "totalSize": 82143,
+    "totalSizeFormatted": "80.22 KB",
+    "averageLinesPerDoc": 428,
+    "files": {
+      "CHANGELOG.md": {
+        "lines": 140,
+        "size": 8425,
+        "sizeFormatted": "8.23 KB"
+      },
+      "README.md": {
+        "lines": 104,
+        "size": 3927,
+        "sizeFormatted": "3.83 KB"
+      },
+      "assets/icons/README.md": {
+        "lines": 29,
+        "size": 975,
+        "sizeFormatted": "975 B"
+      },
+      "docs/developer-guide.md": {
+        "lines": 1376,
+        "size": 34400,
+        "sizeFormatted": "33.59 KB"
+      },
+      "docs/user-guide.md": {
+        "lines": 594,
+        "size": 15737,
+        "sizeFormatted": "15.37 KB"
+      },
+      "todo.md": {
+        "lines": 327,
+        "size": 18679,
+        "sizeFormatted": "18.24 KB"
+      }
+    }
+  },
+  "testing": {
+    "testFiles": 1,
+    "totalTestLines": 901,
+    "averageLinesPerTest": 901,
+    "testCoverage": null,
+    "files": {
+      "test/test-scenarios.js": {
+        "totalLines": 901,
+        "codeLines": 649,
+        "commentLines": 127,
+        "blankLines": 125,
+        "size": 29413
+      }
+    }
+  },
+  "performance": {},
+  "complexity": {
+    "totalJSFiles": 25,
+    "totalFunctions": 384,
+    "totalClasses": 25,
+    "totalImports": 28,
+    "totalExports": 36,
+    "averageFunctionsPerFile": 15,
+    "files": {
+      ".eslintrc.js": {
+        "functions": 0,
+        "classes": 0,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 0,
+        "loops": 0
+      },
+      "assets/icons/icon-generator.js": {
+        "functions": 0,
+        "classes": 0,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 0,
+        "loops": 0
+      },
+      "background/service-worker.js": {
+        "functions": 57,
+        "classes": 0,
+        "imports": 7,
+        "exports": 1,
+        "conditionals": 102,
+        "loops": 7
+      },
+      "config.js": {
+        "functions": 0,
+        "classes": 0,
+        "imports": 0,
+        "exports": 3,
+        "conditionals": 1,
+        "loops": 0
+      },
+      "content-scripts/linkedin.js": {
+        "functions": 25,
+        "classes": 1,
+        "imports": 3,
+        "exports": 2,
+        "conditionals": 59,
+        "loops": 7
+      },
+      "content-scripts/twitter.js": {
+        "functions": 26,
+        "classes": 1,
+        "imports": 4,
+        "exports": 0,
+        "conditionals": 66,
+        "loops": 10
+      },
+      "popup/debug-panel.js": {
+        "functions": 31,
+        "classes": 1,
+        "imports": 0,
+        "exports": 4,
+        "conditionals": 32,
+        "loops": 6
+      },
+      "popup/popup.js": {
+        "functions": 23,
+        "classes": 1,
+        "imports": 1,
+        "exports": 2,
+        "conditionals": 58,
+        "loops": 1
+      },
+      "prompts/comment-templates.js": {
+        "functions": 1,
+        "classes": 1,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 12,
+        "loops": 1
+      },
+      "scripts/build.js": {
+        "functions": 17,
+        "classes": 1,
+        "imports": 2,
+        "exports": 1,
+        "conditionals": 16,
+        "loops": 8
+      },
+      "scripts/project-stats.js": {
+        "functions": 17,
+        "classes": 1,
+        "imports": 2,
+        "exports": 1,
+        "conditionals": 24,
+        "loops": 12
+      },
+      "services/gemini-api.js": {
+        "functions": 13,
+        "classes": 1,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 26,
+        "loops": 2
+      },
+      "test/test-scenarios.js": {
+        "functions": 31,
+        "classes": 2,
+        "imports": 3,
+        "exports": 1,
+        "conditionals": 31,
+        "loops": 17
+      },
+      "utils/api-handler.js": {
+        "functions": 8,
+        "classes": 1,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 19,
+        "loops": 5
+      },
+      "utils/comment-poster.js": {
+        "functions": 11,
+        "classes": 1,
+        "imports": 2,
+        "exports": 1,
+        "conditionals": 27,
+        "loops": 2
+      },
+      "utils/content-filter.js": {
+        "functions": 7,
+        "classes": 1,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 22,
+        "loops": 7
+      },
+      "utils/data-extractor.js": {
+        "functions": 4,
+        "classes": 1,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 48,
+        "loops": 4
+      },
+      "utils/dom-helpers.js": {
+        "functions": 19,
+        "classes": 1,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 32,
+        "loops": 3
+      },
+      "utils/duplicate-checker.js": {
+        "functions": 15,
+        "classes": 1,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 24,
+        "loops": 10
+      },
+      "utils/error-handler.js": {
+        "functions": 15,
+        "classes": 2,
+        "imports": 2,
+        "exports": 1,
+        "conditionals": 33,
+        "loops": 4
+      },
+      "utils/logger.js": {
+        "functions": 13,
+        "classes": 2,
+        "imports": 1,
+        "exports": 2,
+        "conditionals": 36,
+        "loops": 1
+      },
+      "utils/performance-optimizer.js": {
+        "functions": 18,
+        "classes": 2,
+        "imports": 1,
+        "exports": 1,
+        "conditionals": 33,
+        "loops": 9
+      },
+      "utils/scheduler.js": {
+        "functions": 13,
+        "classes": 1,
+        "imports": 0,
+        "exports": 3,
+        "conditionals": 32,
+        "loops": 2
+      },
+      "utils/storage.js": {
+        "functions": 20,
+        "classes": 1,
+        "imports": 0,
+        "exports": 3,
+        "conditionals": 27,
+        "loops": 7
+      },
+      "utils/twitter-selectors.js": {
+        "functions": 0,
+        "classes": 1,
+        "imports": 0,
+        "exports": 1,
+        "conditionals": 10,
+        "loops": 2
+      }
+    }
+  }
+}

@@ -1,50 +1,131 @@
 {
   "name": "social-media-auto-comment",
   "version": "1.0.0",
-  "description": "Chrome Extension that automatically comments on LinkedIn and Twitter posts using Gemini AI",
+  "description": "Chrome Extension that automatically comments on LinkedIn and Twitter posts using Gemini AI, targeting Computer Science student-relevant content with intelligent filtering and human-like behavior simulation.",
   "main": "manifest.json",
   "scripts": {
-    "build": "echo 'No build process needed for Chrome Extension'",
-    "test": "echo 'Tests will be implemented in Part 9'",
-    "lint": "echo 'ESLint configuration can be added later'",
-    "package": "echo 'Extension packaging will be handled in Part 10'"
+    "build": "node scripts/build.js",
+    "build:dev": "node scripts/build.js --dev",
+    "build:prod": "node scripts/build.js --prod",
+    "test": "node test/test-scenarios.js",
+    "test:unit": "node test/test-scenarios.js --suite=unit",
+    "test:integration": "node test/test-scenarios.js --suite=integration",
+    "test:e2e": "node test/test-scenarios.js --suite=e2e",
+    "test:performance": "node test/test-scenarios.js --suite=performance",
+    "test:coverage": "node scripts/coverage.js",
+    "lint": "eslint . --ext .js --ignore-path .gitignore",
+    "lint:fix": "eslint . --ext .js --ignore-path .gitignore --fix",
+    "format": "prettier --write '**/*.{js,json,md,css,html}'",
+    "format:check": "prettier --check '**/*.{js,json,md,css,html}'",
+    "package": "web-ext build --source-dir=dist/",
+    "package:dev": "web-ext build --source-dir=. --artifacts-dir=packages/",
+    "validate": "web-ext lint --source-dir=.",
+    "start": "web-ext run --source-dir=. --start-url=https://linkedin.com/feed",
+    "docs": "node scripts/generate-docs.js",
+    "stats": "node scripts/project-stats.js",
+    "clean": "rimraf dist/ packages/ coverage/",
+    "prepack": "npm run test && npm run lint && npm run build:prod",
+    "release": "npm run prepack && npm run package",
+    "dev": "npm run build:dev && npm run start"
   },
   "keywords": [
     "chrome-extension",
-    "linkedin",
-    "twitter",
-    "automation",
-    "ai",
-    "gemini",
-    "social-media",
-    "comments",
-    "cs-student"
+    "linkedin-automation",
+    "twitter-automation", 
+    "x-automation",
+    "social-media-automation",
+    "ai-comments",
+    "gemini-ai",
+    "computer-science",
+    "student-tools",
+    "content-filtering",
+    "human-like-behavior",
+    "duplicate-prevention",
+    "performance-optimized",
+    "manifest-v3",
+    "es6-modules"
   ],
-  "author": "Developer",
+  "author": {
+    "name": "Social Media Auto-Comment Team",
+    "email": "support@example.com",
+    "url": "https://github.com/username/social-media-auto-comment"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "."
+    "url": "https://github.com/username/social-media-auto-comment.git"
   },
+  "bugs": {
+    "url": "https://github.com/username/social-media-auto-comment/issues"
+  },
+  "homepage": "https://github.com/username/social-media-auto-comment#readme",
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0",
+    "chrome": ">=88"
   },
   "devDependencies": {
-    "eslint": "^8.0.0",
-    "prettier": "^2.0.0"
+    "eslint": "^8.57.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-n": "^16.6.0",
+    "eslint-plugin-promise": "^6.1.0",
+    "prettier": "^3.2.0",
+    "web-ext": "^7.11.0",
+    "rimraf": "^5.0.0",
+    "jsdoc": "^4.0.0"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.2.0"
   },
   "chrome-extension": {
     "manifest-version": 3,
     "platforms": [
-      "linkedin.com",
+      "linkedin.com", 
       "x.com",
       "twitter.com"
     ],
     "apis": [
       "storage",
-      "scripting",
+      "scripting", 
       "activeTab",
-      "tabs"
+      "tabs",
+      "alarms"
+    ],
+    "permissions": [
+      "storage",
+      "activeTab",
+      "scripting",
+      "alarms"
+    ],
+    "host_permissions": [
+      "https://linkedin.com/*",
+      "https://www.linkedin.com/*", 
+      "https://twitter.com/*",
+      "https://x.com/*",
+      "https://generativelanguage.googleapis.com/*"
     ]
+  },
+  "extensionMetadata": {
+    "targetAudience": "Computer Science students and professionals",
+    "features": [
+      "AI-powered comment generation",
+      "LinkedIn and Twitter/X integration",
+      "Smart content filtering",
+      "Human-like behavior simulation", 
+      "Duplicate prevention system",
+      "Performance optimization",
+      "Comprehensive debugging tools",
+      "Real-time monitoring"
+    ],
+    "requirements": {
+      "browser": "Chrome 88+",
+      "api": "Google Gemini API key",
+      "platforms": "Active LinkedIn and/or Twitter accounts"
+    },
+    "privacy": {
+      "dataCollection": "Local only - no external data storage",
+      "apiUsage": "Google Gemini API for comment generation",
+      "permissions": "Minimal required for platform interaction"
+    }
   }
 }

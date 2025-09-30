@@ -1,0 +1,46 @@
+{
+  "buildTime": "2025-09-30T09:15:20.006Z",
+  "mode": "production",
+  "sourceDirectory": "/home/shakil/projects/social_media",
+  "outputDirectory": "/home/shakil/projects/social_media/dist",
+  "filesProcessed": 33,
+  "totalSize": 508869,
+  "fileTypes": {
+    ".md": {
+      "count": 4,
+      "size": 52592,
+      "sizeFormatted": "51.36 KB"
+    },
+    ".js": {
+      "count": 21,
+      "size": 416303,
+      "sizeFormatted": "406.55 KB"
+    },
+    ".svg": {
+      "count": 1,
+      "size": 438,
+      "sizeFormatted": "438 B"
+    },
+    ".png": {
+      "count": 4,
+      "size": 400,
+      "sizeFormatted": "400 B"
+    },
+    ".json": {
+      "count": 1,
+      "size": 2505,
+      "sizeFormatted": "2.45 KB"
+    },
+    ".css": {
+      "count": 1,
+      "size": 23533,
+      "sizeFormatted": "22.98 KB"
+    },
+    ".html": {
+      "count": 1,
+      "size": 13098,
+      "sizeFormatted": "12.79 KB"
+    }
+  },
+  "totalSizeFormatted": "496.94 KB"
+}

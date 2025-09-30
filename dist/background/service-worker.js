@@ -1482,7 +1482,7 @@ async function handleSetDebugMode(enabled) {
 async function handleGetPerformanceStats() {
     try {
         const stats = performanceOptimizer.getPerformanceStats();
-
+        
         logger.debug('Performance stats retrieved', {
             component: 'ServiceWorker',
             stats
@@ -1508,7 +1508,7 @@ async function handleGetPerformanceStats() {
 async function handleForceCleanup() {
     try {
         await performanceOptimizer.forceCleanup();
-
+        
         logger.info('Force cleanup executed', {
             component: 'ServiceWorker'
         });
@@ -1533,7 +1533,7 @@ async function handleForceCleanup() {
 async function handleGetMemoryUsage() {
     try {
         let memoryInfo = null;
-
+        
         if (typeof performance.memory !== 'undefined') {
             memoryInfo = {
                 used: performance.memory.usedJSHeapSize,
