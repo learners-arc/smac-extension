@@ -11,10 +11,50 @@
  * - Gemini API integration for intelligent comment generation
  */
 
-// Import required modules
-import { ContentFilter } from '../utils/content-filter.js';
-import { DataExtractor } from '../utils/data-extractor.js';
-import { geminiAPI } from '../services/gemini-api.js';
+// Global references for dynamically imported modules
+let ContentFilter, DataExtractor, geminiAPI;
+
+/**
+ * Initialize modules using dynamic imports
+ */
+async function initializeModules() {
+    try {
+        const contentFilterModule = await import(chrome.runtime.getURL('utils/content-filter.js'))/**
+ * Initialize LinkedIn handler when page is ready
+ */
+        async function initializeLinkedInHandler() {
+            console.log('LinkedIn page ready, initializing handler...');
+
+            // Initialize modules first
+            const modulesLoaded = await initializeModules();
+            if (!modulesLoaded) {
+                console.error('[LinkedIn] Failed to load required modules');
+                return;
+            }
+
+            // Now initialize the handler
+            linkedInHandler.initialize();
+        }
+
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeLinkedInHandler);
+        } else {
+            initializeLinkedInHandler();
+        } const dataExtractorModule = await import(chrome.runtime.getURL('utils/data-extractor.js'));
+        const geminiModule = await import(chrome.runtime.getURL('services/gemini-api.js'));
+
+        ContentFilter = contentFilterModule.ContentFilter;
+        DataExtractor = dataExtractorModule.DataExtractor;
+        geminiAPI = geminiModule.geminiAPI;
+
+        console.log('[LinkedIn] Modules loaded successfully');
+        return true;
+    } catch (error) {
+        console.error('[LinkedIn] Failed to load modules:', error);
+        return false;
+    }
+}
 
 /**
  * LinkedIn Auto-Comment Handler Class
@@ -799,8 +839,8 @@ const urlObserver = new MutationObserver(() => {
         console.log('LinkedIn page navigation detected, reinitializing...');
 
         // Reinitialize after navigation
-        setTimeout(() => {
-            linkedInHandler.initialize();
+        setTimeout(async () => {
+            await initializeLinkedInHandler();
         }, 2000);
     }
 });

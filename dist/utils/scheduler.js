@@ -28,6 +28,9 @@ class CommentScheduler {
             max: 90000  // 90 seconds
         };
 
+        // State tracking
+        this.lastLoggedInterval = null;
+
         // Bind methods
         this.executeScheduledTask = this.executeScheduledTask.bind(this);
     }
@@ -300,7 +303,12 @@ class CommentScheduler {
             if (newInterval.min && newInterval.max && newInterval.min < newInterval.max) {
                 this.defaultInterval = { ...newInterval };
 
-                console.log('Scheduler interval updated:', this.defaultInterval);
+                // Only log if interval actually changed
+                if (this.lastLoggedInterval?.min !== newInterval.min ||
+                    this.lastLoggedInterval?.max !== newInterval.max) {
+                    console.log('Scheduler interval updated:', this.defaultInterval);
+                    this.lastLoggedInterval = { ...newInterval };
+                }
 
                 return true;
             }

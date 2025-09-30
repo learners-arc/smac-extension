@@ -754,6 +754,14 @@ class DebugPanel {
             return `${seconds}s`;
         }
     }
+
+    /**
+     * Show logs directly (convenience method)
+     */
+    showLogs() {
+        this.show();
+        this.switchTab('logs');
+    }
 }
 
 // Export for use in popup

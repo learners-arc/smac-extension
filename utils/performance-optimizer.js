@@ -62,9 +62,11 @@ class PerformanceOptimizer {
 
         this.intervals.add(memoryMonitor);
 
-        // Monitor DOM size every 60 seconds
+        // Monitor DOM size every 60 seconds (only in content script context)
         const domMonitor = setInterval(() => {
-            this.checkDOMSize();
+            if (typeof document !== 'undefined') {
+                this.checkDOMSize();
+            }
         }, 60000);
 
         this.intervals.add(domMonitor);
@@ -127,21 +129,23 @@ class PerformanceOptimizer {
      */
     checkDOMSize() {
         try {
-            const nodeCount = document.querySelectorAll('*').length;
-            const eventListenerCount = this.eventListeners.size;
+            // Only run in contexts where document is available
+            if (typeof document === 'undefined') {
+                return;
+            }
+
+            const elementCount = document.querySelectorAll('*').length;
+            const eventListenerCount = this.estimateEventListeners();
             const observerCount = this.observers.size;
 
-            logger.debug('DOM size check', {
-                component: 'PerformanceOptimizer',
-                nodeCount,
-                eventListenerCount,
-                observerCount
-            });
+            // Update statistics
+            this.stats.domChecks++;
+            this.stats.lastDOMCheck = Date.now();
 
-            if (nodeCount > this.performanceThresholds.domNodes) {
-                logger.warn('High DOM node count detected', {
+            if (elementCount > this.performanceThresholds.domElements) {
+                logger.warn('High DOM element count detected', {
                     component: 'PerformanceOptimizer',
-                    nodeCount
+                    elementCount
                 });
             }
 
@@ -164,9 +168,7 @@ class PerformanceOptimizer {
                 error: error.message
             });
         }
-    }
-
-    /**
+    }    /**
      * Perform memory cleanup
      */
     async performMemoryCleanup() {
@@ -187,8 +189,8 @@ class PerformanceOptimizer {
             // Clean up storage caches
             await this.cleanupStorageCaches();
 
-            // Force garbage collection if available
-            if (typeof window.gc === 'function') {
+            // Force garbage collection if available (only in window context)
+            if (typeof window !== 'undefined' && typeof window.gc === 'function') {
                 window.gc();
                 logger.debug('Forced garbage collection', {
                     component: 'PerformanceOptimizer'

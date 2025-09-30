@@ -443,7 +443,7 @@ class PopupApp {
 
             // Update the comment interval with some randomization
             const interval = {
-                min: Math.max(70, value - 5),
+                min: Math.max(30, value - 5),
                 max: Math.min(90, value + 5)
             };
 
@@ -571,8 +571,14 @@ class PopupApp {
      */
     async handleViewLogs() {
         try {
-            // This will be implemented in Part 9
-            this.showToast('Logs viewer coming soon!', 'info');
+            // Show debug panel with logs tab
+            if (this.debugPanel) {
+                this.debugPanel.showLogs();
+                this.showToast('Logs panel opened', 'success');
+            } else {
+                console.error('Debug panel not initialized');
+                this.showToast('Debug panel not available', 'error');
+            }
 
         } catch (error) {
             console.error('Error viewing logs:', error);

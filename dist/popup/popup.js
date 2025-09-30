@@ -294,7 +294,7 @@ class PopupApp {
             if (this.elements.statusDot && this.elements.statusDot.classList) {
                 this.elements.statusDot.classList.toggle('active', isActive);
             }
-            
+
             if (this.elements.statusText) {
                 this.elements.statusText.textContent = isActive ? 'Active' : 'Inactive';
             }
@@ -443,7 +443,7 @@ class PopupApp {
 
             // Update the comment interval with some randomization
             const interval = {
-                min: Math.max(70, value - 5),
+                min: Math.max(30, value - 5),
                 max: Math.min(90, value + 5)
             };
 
@@ -571,8 +571,14 @@ class PopupApp {
      */
     async handleViewLogs() {
         try {
-            // This will be implemented in Part 9
-            this.showToast('Logs viewer coming soon!', 'info');
+            // Show debug panel with logs tab
+            if (this.debugPanel) {
+                this.debugPanel.showLogs();
+                this.showToast('Logs panel opened', 'success');
+            } else {
+                console.error('Debug panel not initialized');
+                this.showToast('Debug panel not available', 'error');
+            }
 
         } catch (error) {
             console.error('Error viewing logs:', error);
@@ -956,7 +962,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Wait a bit for DOM to be fully ready
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         // Verify DOM is ready
         if (document.readyState !== 'complete') {
             await new Promise(resolve => {
@@ -969,7 +975,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         console.log('DOM ready, initializing popup application...');
-        
+
         const app = new PopupApp();
         await app.init();
 
@@ -980,13 +986,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     } catch (error) {
         console.error('Failed to initialize popup application:', error);
-        
+
         // Show error to user if possible
         const errorDiv = document.createElement('div');
         errorDiv.style.cssText = 'position: fixed; top: 10px; left: 10px; background: #ff4444; color: white; padding: 10px; border-radius: 4px; z-index: 9999;';
         errorDiv.textContent = 'Extension failed to initialize. Please refresh.';
         document.body.appendChild(errorDiv);
-        
+
         // Auto-remove error after 10 seconds
         setTimeout(() => {
             if (errorDiv.parentNode) {

@@ -12,11 +12,57 @@
  * Part 7: Enhanced with Gemini API integration for intelligent comment generation
  */
 
-// Import utilities (Note: These will be available through the extension context)
-// import { twitterSelectors } from '../utils/twitter-selectors.js';
-// import { contentFilter } from '../utils/content-filter.js';
-// import { dataExtractor } from '../utils/data-extractor.js';
-// import { geminiAPI } from '../services/gemini-api.js';
+// Global references for dynamically imported modules
+let twitterSelectors, ContentFilter, DataExtractor, geminiAPI;
+
+/**
+ * Initialize modules using dynamic imports
+/**
+ * Initialize modules using dynamic imports
+ */
+async function initializeModules() {
+    try {
+        const twitterSelectorsModule = await import(chrome.runtime.getURL('utils/twitter-selectors.js'));
+        const contentFilterModule = await import(chrome.runtime.getURL('utils/content-filter.js'));
+        const dataExtractorModule = await import(chrome.runtime.getURL('utils/data-extractor.js'));
+        const geminiModule = await import(chrome.runtime.getURL('services/gemini-api.js'));
+
+        twitterSelectors = twitterSelectorsModule.twitterSelectors;
+        ContentFilter = contentFilterModule.ContentFilter;
+        DataExtractor = dataExtractorModule.DataExtractor;
+        geminiAPI = geminiModule.geminiAPI;
+
+        console.log('[Twitter] Modules loaded successfully');
+        return true;
+    } catch (error) {
+        console.error('[Twitter] Failed to load modules:', error);
+        return false;
+    }
+}
+
+/**
+ * Initialize Twitter handler when page is ready
+ */
+async function initializeTwitterHandler() {
+    console.log('Twitter page ready, initializing handler...');
+
+    // Initialize modules first
+    const modulesLoaded = await initializeModules();
+    if (!modulesLoaded) {
+        console.error('[Twitter] Failed to load required modules');
+        return;
+    }
+
+    // Now initialize the handler
+    twitterHandler.initialize();
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeTwitterHandler);
+} else {
+    initializeTwitterHandler();
+}
 
 /**
  * Twitter/X Auto-Comment Handler Class
@@ -908,8 +954,8 @@ const urlObserver = new MutationObserver(() => {
         console.log('Twitter/X page navigation detected, reinitializing...');
 
         // Reinitialize after navigation
-        setTimeout(() => {
-            twitterHandler.initialize();
+        setTimeout(async () => {
+            await initializeTwitterHandler();
         }, 2000);
     }
 });

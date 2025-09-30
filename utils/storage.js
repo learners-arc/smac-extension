@@ -117,7 +117,10 @@ class StorageManager {
     async set(key, value) {
         try {
             await chrome.storage.local.set({ [key]: value });
-            console.log(`Storage updated: ${key}`);
+            // Only log non-frequent updates to reduce console spam
+            if (key !== 'extension_logs' && key !== 'extension_settings') {
+                console.log(`Storage updated: ${key}`);
+            }
             return true;
         } catch (error) {
             console.error(`Error setting storage key ${key}:`, error);

@@ -238,6 +238,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     response = await handleSetDebugMode(message.enabled);
                     break;
 
+                case 'POSTS_EXTRACTED':
+                    response = await handlePostsExtracted(message.posts, message.platform);
+                    break;
+
+                case 'CONTENT_SCRIPT_READY':
+                    response = await handleContentScriptReady(message.platform, message.url);
+                    break;
+
                 default:
                     logger.warn('Unknown message type received', {
                         component: 'ServiceWorker',
@@ -1563,6 +1571,108 @@ async function handleGetMemoryUsage() {
         await errorHandler.handleError(error, {
             component: 'ServiceWorker',
             operation: 'getMemoryUsage'
+        });
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Handle content script ready notification
+ */
+async function handleContentScriptReady(platform, url) {
+    try {
+        logger.info(`Content script ready for ${platform}`, {
+            component: 'ServiceWorker',
+            operation: 'handleContentScriptReady',
+            platform,
+            url
+        });
+
+        // Track active content scripts
+        const currentTime = Date.now();
+        await storageManager.addLog('INFO', `Content script initialized for ${platform}`, {
+            platform,
+            url,
+            timestamp: currentTime
+        });
+
+        // Update statistics
+        const stats = await storageManager.getStatistics();
+        if (!stats.contentScriptInitializations) {
+            stats.contentScriptInitializations = 0;
+        }
+        stats.contentScriptInitializations++;
+        await storageManager.updateStatistics(stats);
+
+        return {
+            success: true,
+            data: {
+                platform,
+                url,
+                timestamp: currentTime,
+                message: 'Content script registration acknowledged'
+            }
+        };
+
+    } catch (error) {
+        await errorHandler.handleError(error, {
+            component: 'ServiceWorker',
+            operation: 'handleContentScriptReady',
+            platform,
+            url
+        });
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Handle posts extracted from content scripts
+ */
+async function handlePostsExtracted(posts, platform) {
+    try {
+        if (!posts || !Array.isArray(posts)) {
+            throw new Error('Invalid posts data received');
+        }
+
+        logger.info(`Received ${posts.length} posts from ${platform}`, {
+            component: 'ServiceWorker',
+            operation: 'handlePostsExtracted',
+            platform,
+            postCount: posts.length
+        });
+
+        // Store the posts for processing
+        const currentPosts = await storageManager.getProcessedPosts();
+        const updatedPosts = {
+            ...currentPosts,
+            [platform]: {
+                posts,
+                timestamp: Date.now(),
+                count: posts.length
+            }
+        };
+
+        await storageManager.setProcessedPosts(updatedPosts);
+
+        // Update statistics
+        const stats = await storageManager.getStatistics();
+        stats.postsScanned += posts.length;
+        await storageManager.updateStatistics(stats);
+
+        return {
+            success: true,
+            data: {
+                postsReceived: posts.length,
+                platform,
+                timestamp: Date.now()
+            }
+        };
+
+    } catch (error) {
+        await errorHandler.handleError(error, {
+            component: 'ServiceWorker',
+            operation: 'handlePostsExtracted',
+            platform
         });
         return { success: false, error: error.message };
     }
