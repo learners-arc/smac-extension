@@ -147,6 +147,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     response = await handleLogEvent(message.data);
                     break;
 
+                // Part 7 & 8: Gemini API and Comment Generation handlers
+                case 'TEST_GEMINI_API':
+                    response = await handleTestGeminiAPI(message.apiKey);
+                    break;
+
+                case 'SAVE_GEMINI_API_KEY':
+                    response = await handleSaveGeminiAPIKey(message.apiKey);
+                    break;
+
+                case 'UPDATE_COMMENT_SETTINGS':
+                    response = await handleUpdateCommentSettings(message.settings);
+                    break;
+
+                case 'GENERATE_AND_POST_COMMENT':
+                    response = await handleGenerateAndPostComment(message.data, sender);
+                    break;
+
+                case 'API_KEY_ERROR':
+                    response = await handleAPIKeyError(message);
+                    break;
+
+                case 'START_AUTOMATED_COMMENTING':
+                    response = await handleStartAutomatedCommenting(message.data);
+                    break;
+
+                case 'STOP_AUTOMATED_COMMENTING':
+                    response = await handleStopAutomatedCommenting();
+                    break;
+
+                case 'GET_DUPLICATE_STATISTICS':
+                    response = await handleGetDuplicateStatistics();
+                    break;
+
+                case 'RESET_DUPLICATE_CHECKER':
+                    response = await handleResetDuplicateChecker(message.includeHistory);
+                    break;
+
                 default:
                     console.warn('Unknown message type:', message.type);
                     response = { success: false, error: 'Unknown message type' };
@@ -565,6 +602,286 @@ async function handleLogEvent(data) {
     } catch (error) {
         console.error('Error handling log event:', error);
         return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Part 7 & 8: Gemini API and Automated Commenting Handlers
+ */
+
+/**
+ * Test Gemini API connection
+ */
+async function handleTestGeminiAPI(apiKey) {
+    try {
+        console.log('[Service Worker] Testing Gemini API connection');
+
+        // Temporarily set API key for testing
+        await geminiAPI.setApiKey(apiKey);
+
+        // Perform connection test
+        const testResult = await geminiAPI.testConnection();
+
+        if (testResult.success) {
+            return { success: true, message: 'API connection successful' };
+        } else {
+            return { success: false, error: testResult.message };
+        }
+
+    } catch (error) {
+        console.error('[Service Worker] Gemini API test failed:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Save Gemini API key
+ */
+async function handleSaveGeminiAPIKey(apiKey) {
+    try {
+        console.log('[Service Worker] Saving Gemini API key');
+
+        await geminiAPI.setApiKey(apiKey);
+
+        // Update extension settings
+        const currentSettings = await storageManager.getSettings();
+        currentSettings.hasApiKey = true;
+        await storageManager.updateSettings(currentSettings);
+
+        return { success: true, message: 'API key saved successfully' };
+
+    } catch (error) {
+        console.error('[Service Worker] Failed to save API key:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Update comment generation settings
+ */
+async function handleUpdateCommentSettings(settings) {
+    try {
+        console.log('[Service Worker] Updating comment settings:', settings);
+
+        // Save to Chrome storage
+        await chrome.storage.sync.set({
+            commentStyle: settings.commentStyle,
+            commentLength: settings.commentLength,
+            commentTone: settings.commentTone || 'professional yet friendly'
+        });
+
+        return { success: true, message: 'Comment settings updated' };
+
+    } catch (error) {
+        console.error('[Service Worker] Failed to update comment settings:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Generate and post comment using AI
+ */
+async function handleGenerateAndPostComment(data, sender) {
+    try {
+        console.log('[Service Worker] Generating and posting AI comment');
+
+        const { postData, platform } = data;
+
+        // Check if extension is active
+        if (!extensionState.currentSession) {
+            return { success: false, error: 'Extension is not active' };
+        }
+
+        // Forward to content script for processing
+        const response = await chrome.tabs.sendMessage(sender.tab.id, {
+            type: 'GENERATE_AND_POST_COMMENT',
+            postData,
+            platform
+        });
+
+        // Update statistics
+        if (response.success) {
+            await updateSessionStatistics('commentGenerated', platform);
+        }
+
+        return response;
+
+    } catch (error) {
+        console.error('[Service Worker] Failed to generate and post comment:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Handle API key errors from content scripts
+ */
+async function handleAPIKeyError(message) {
+    try {
+        console.log('[Service Worker] API key error reported:', message);
+
+        // Log the error
+        await storageManager.addLog('ERROR', 'API Key Error', message.platform, {
+            message: message.message,
+            timestamp: Date.now()
+        });
+
+        // Update extension status to indicate API key issue
+        const currentSettings = await storageManager.getSettings();
+        currentSettings.hasApiKeyError = true;
+        await storageManager.updateSettings(currentSettings);
+
+        // Notify popup if open
+        try {
+            chrome.runtime.sendMessage({
+                type: 'API_KEY_ERROR_NOTIFICATION',
+                platform: message.platform,
+                message: message.message
+            });
+        } catch (popupError) {
+            // Popup not open, ignore
+        }
+
+        return { success: true, message: 'API key error handled' };
+
+    } catch (error) {
+        console.error('[Service Worker] Failed to handle API key error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Start automated commenting workflow
+ */
+async function handleStartAutomatedCommenting(data) {
+    try {
+        console.log('[Service Worker] Starting automated commenting workflow');
+
+        const { platforms = [], intervals = {} } = data;
+
+        // Validate that we have an API key
+        const hasApiKey = await geminiAPI.isApiKeyValid();
+        if (!hasApiKey) {
+            return { success: false, error: 'Valid Gemini API key required' };
+        }
+
+        // Update platform states
+        platforms.forEach(platform => {
+            extensionState.platformStates[platform.toUpperCase()].isActive = true;
+        });
+
+        // Configure scheduler for automated commenting
+        await commentScheduler.configure({
+            isEnabled: true,
+            intervals: intervals,
+            platforms: platforms,
+            mode: 'automated' // New mode for Part 8
+        });
+
+        // Start the automated workflow
+        await commentScheduler.start();
+
+        return { success: true, message: 'Automated commenting started' };
+
+    } catch (error) {
+        console.error('[Service Worker] Failed to start automated commenting:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Stop automated commenting workflow
+ */
+async function handleStopAutomatedCommenting() {
+    try {
+        console.log('[Service Worker] Stopping automated commenting workflow');
+
+        // Stop scheduler
+        await commentScheduler.stop();
+
+        // Deactivate platform states
+        Object.keys(extensionState.platformStates).forEach(platform => {
+            extensionState.platformStates[platform].isActive = false;
+        });
+
+        return { success: true, message: 'Automated commenting stopped' };
+
+    } catch (error) {
+        console.error('[Service Worker] Failed to stop automated commenting:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Get duplicate checker statistics
+ */
+async function handleGetDuplicateStatistics() {
+    try {
+        console.log('[Service Worker] Getting duplicate checker statistics');
+
+        // Import duplicate checker
+        const { duplicateChecker } = await import('../utils/duplicate-checker.js');
+
+        const stats = await duplicateChecker.getStatistics();
+        const patterns = await duplicateChecker.getRecentPatterns(7);
+
+        return {
+            success: true,
+            data: {
+                statistics: stats,
+                recentPatterns: patterns
+            }
+        };
+
+    } catch (error) {
+        console.error('[Service Worker] Failed to get duplicate statistics:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Reset duplicate checker data
+ */
+async function handleResetDuplicateChecker(includeHistory = false) {
+    try {
+        console.log('[Service Worker] Resetting duplicate checker');
+
+        // Import duplicate checker
+        const { duplicateChecker } = await import('../utils/duplicate-checker.js');
+
+        await duplicateChecker.reset(includeHistory);
+
+        return { success: true, message: 'Duplicate checker reset successfully' };
+
+    } catch (error) {
+        console.error('[Service Worker] Failed to reset duplicate checker:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Update session statistics helper
+ */
+async function updateSessionStatistics(type, platform) {
+    try {
+        if (!extensionState.currentSession) return;
+
+        const sessionData = await storageManager.getSessionData(extensionState.currentSession.id);
+
+        if (!sessionData.statistics) {
+            sessionData.statistics = {};
+        }
+
+        if (!sessionData.statistics[platform]) {
+            sessionData.statistics[platform] = {};
+        }
+
+        sessionData.statistics[platform][type] = (sessionData.statistics[platform][type] || 0) + 1;
+        sessionData.lastActivity = Date.now();
+
+        await storageManager.updateSessionData(extensionState.currentSession.id, sessionData);
+
+    } catch (error) {
+        console.error('[Service Worker] Failed to update session statistics:', error);
     }
 }
 
